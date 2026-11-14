@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Update="Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="../../src/OpenLLMCluster.Desktop/OpenLLMCluster.Desktop.csproj" />
+    <ProjectReference Include="../../src/OpenLLMCluster.Agent/OpenLLMCluster.Agent.csproj" />
+    <ProjectReference Include="../OpenLLMCluster.EngineFixture/OpenLLMCluster.EngineFixture.csproj" ReferenceOutputAssembly="false" />
+    <PackageReference Include="Avalonia.Headless.XUnit" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+  </ItemGroup>
+</Project>
