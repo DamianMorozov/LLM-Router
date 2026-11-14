@@ -84,14 +84,19 @@ public sealed class LocalAgentHost(string? executablePath = null, AgentCertifica
     public void Stop()
     {
         var process = _process;
-        _process = null;
         if (process is null) return;
         try
         {
-            if (!process.HasExited) { process.Kill(entireProcessTree: true); process.WaitForExit(3000); }
+            if (!process.HasExited)
+            {
+                try { process.Kill(entireProcessTree: true); }
+                catch (InvalidOperationException) when (process.HasExited) { }
+                if (!process.WaitForExit(5000)) throw new TimeoutException("Агент не завершился; обновление небезопасно");
+            }
+            process.Dispose();
+            _process = null;
         }
-        catch (Exception ex) { Trace.TraceError("Stop local agent: {0}", ex.Message); }
-        finally { process.Dispose(); }
+        catch (Exception ex) { Trace.TraceError("Stop local agent: {0}", ex); throw; }
     }
 
     /// <summary>Завершает принадлежащий приложению агент при закрытии Desktop</summary>

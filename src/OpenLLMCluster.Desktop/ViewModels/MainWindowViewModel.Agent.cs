@@ -29,7 +29,7 @@ public partial class MainWindowViewModel
     [NotifyCanExecuteChangedFor(nameof(StartLocalAgentCommand), nameof(StopLocalAgentCommand), nameof(GenerateAgentTokenCommand))]
     private bool _isLocalAgentRunning;
 
-    public bool CanEditLocalAgent => !IsLocalAgentBusy && !IsLocalAgentRunning && !IsLocalModelBusy;
+    public bool CanEditLocalAgent => !IsPreparingUpdate && !IsLocalAgentBusy && !IsLocalAgentRunning && !IsLocalModelBusy;
     public bool CanConfigureFirewall => OperatingSystem.IsWindows() && !IsLocalAgentBusy;
     public string LocalAddresses => NetworkPortProbe.GetLocalAddresses();
     public char AgentTokenMask => ShowLocalAgentToken ? '\0' : '●';
@@ -182,6 +182,7 @@ public partial class MainWindowViewModel
     {
         if (_disposed) return;
         _disposed = true;
+        Updates.Dispose();
         StopMonitoring();
         CompleteModelLoading("ModelNotLoaded");
         _agentLifetime.Cancel();

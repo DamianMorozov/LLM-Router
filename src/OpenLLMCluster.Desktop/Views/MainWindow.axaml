@@ -9,7 +9,7 @@
         Background="{DynamicResource AppBackgroundBrush}">
   <Grid RowDefinitions="Auto,*,Auto" Margin="28">
     <StackPanel Spacing="8" Margin="0,0,0,18">
-      <Grid x:Name="HeaderSettings" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" MinHeight="40">
+      <Grid x:Name="HeaderSettings" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" MinHeight="40" IsEnabled="{Binding CanUseWorkspace}">
           <Border Background="#5965F2" CornerRadius="9" Padding="8,5" VerticalAlignment="Center">
             <TextBlock Text="{x:Static services:ApplicationInfo.ShortName}" FontSize="19" FontWeight="Bold" Foreground="White" />
           </Border>
@@ -42,7 +42,7 @@
       <TextBlock Text="{Binding Text[Subtitle]}" Classes="muted" />
     </StackPanel>
     <TabControl Grid.Row="1" x:Name="WorkspaceTabs">
-      <TabItem x:Name="OverviewTab" Header="{Binding Text[Overview]}">
+      <TabItem x:Name="OverviewTab" Header="{Binding Text[Overview]}" IsEnabled="{Binding CanUseWorkspace}">
         <ScrollViewer>
           <StackPanel Spacing="10" Margin="0,18,10,12">
             <Border x:Name="OverviewModelCard" Classes="card compact">
@@ -202,7 +202,7 @@
           </StackPanel>
         </ScrollViewer>
       </TabItem>
-      <TabItem x:Name="NodesTab" Header="{Binding Text[Nodes]}" IsEnabled="{Binding IsCoordinatorRole}">
+      <TabItem x:Name="NodesTab" Header="{Binding Text[Nodes]}" IsEnabled="{Binding CanViewNodes}">
         <ScrollViewer>
           <StackPanel Margin="0,18,10,12" Spacing="16">
             <Grid ColumnDefinitions="*,Auto">
@@ -267,7 +267,7 @@
           </StackPanel>
         </ScrollViewer>
       </TabItem>
-      <TabItem x:Name="RuntimeTab" Header="{Binding Text[Runtime]}">
+      <TabItem x:Name="RuntimeTab" Header="{Binding Text[Runtime]}" IsEnabled="{Binding CanUseWorkspace}">
         <ScrollViewer x:Name="RuntimeScroller">
           <StackPanel Margin="0,18,10,12" Spacing="18">
             <TextBlock Text="{Binding RoleSettingsHelp}" Classes="muted" TextWrapping="Wrap" />
@@ -479,7 +479,7 @@
           </StackPanel>
         </ScrollViewer>
       </TabItem>
-      <TabItem x:Name="LocalAgentTab" Header="{Binding Text[LocalAgentTab]}">
+      <TabItem x:Name="LocalAgentTab" Header="{Binding Text[LocalAgentTab]}" IsEnabled="{Binding CanUseWorkspace}">
         <ScrollViewer x:Name="LocalAgentScroller">
           <StackPanel Spacing="10" Margin="0,14,10,12">
             <Border Classes="card compact"><StackPanel Spacing="8">
@@ -571,6 +571,63 @@
                 <Button x:Name="EnsureFirewallButton" Grid.Column="2" Content="{Binding Text[EnsureAgentFirewall]}"
                         Command="{Binding EnsureAgentFirewallCommand}" Classes="compactAction" ToolTip.Tip="{Binding Text[AgentFirewallHelp]}" />
               </Grid>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem x:Name="UpdatesTab" Header="{Binding Text[UpdateTab]}">
+        <ScrollViewer>
+          <StackPanel Spacing="10" Margin="0,18,10,12">
+            <Border x:Name="ApplicationUpdateCard" Classes="card compact" DataContext="{Binding Updates}" x:DataType="vm:ApplicationUpdatesViewModel">
+              <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{Binding Text[UpdateTitle]}" Classes="heading" />
+                  <Button Grid.Column="1" x:Name="OpenReleasesButton" Classes="compactAction" Content="GitHub Releases" Click="OpenReleases_Click" />
+                </Grid>
+                <WrapPanel Orientation="Horizontal">
+                  <TextBlock Text="{Binding Text[UpdateCurrentVersion]}" Classes="muted" Margin="0,0,6,0" />
+                  <SelectableTextBlock x:Name="UpdateCurrentVersion" Text="{Binding CurrentVersion}" Margin="0,0,20,0" />
+                  <TextBlock Text="{Binding Text[UpdateAvailableVersion]}" Classes="muted" Margin="0,0,6,0" />
+                  <SelectableTextBlock x:Name="UpdateAvailableVersion" Text="{Binding AvailableVersion}" Margin="0,0,20,0" />
+                  <TextBlock Text="{Binding Channel}" Classes="muted" />
+                </WrapPanel>
+                <TextBlock x:Name="UpdateStatusText" Text="{Binding StatusText}" TextWrapping="Wrap" />
+                <StackPanel Spacing="4" IsVisible="{Binding IsDownloading}">
+                  <ProgressBar x:Name="UpdateDownloadProgress" Minimum="0" Maximum="100" Value="{Binding Progress}" Height="6" />
+                  <TextBlock Text="{Binding Progress, StringFormat='{}{0}%'}" Classes="muted" HorizontalAlignment="Right" />
+                </StackPanel>
+                <ProgressBar IsVisible="{Binding IsChecking}" IsIndeterminate="True" Height="4" />
+                <Expander x:Name="UpdateNotesExpander" Header="{Binding Text[UpdateNotesTitle]}" IsVisible="{Binding HasRelease}"
+                          HorizontalAlignment="Stretch">
+                  <ScrollViewer MaxHeight="180" HorizontalScrollBarVisibility="Disabled">
+                    <SelectableTextBlock x:Name="UpdateReleaseNotes" Text="{Binding ReleaseNotes}" TextWrapping="Wrap" />
+                  </ScrollViewer>
+                </Expander>
+                <WrapPanel Orientation="Horizontal">
+                  <Button x:Name="CheckUpdatesButton" Classes="compactAction" Content="{Binding Text[UpdateCheckAction]}"
+                          Command="{Binding CheckCommand}" Margin="0,0,6,4" />
+                  <Button x:Name="DownloadUpdateButton" Classes="compactAction" Content="{Binding Text[UpdateDownloadAction]}"
+                          Command="{Binding DownloadCommand}" Margin="0,0,6,4" />
+                  <Button x:Name="CancelUpdateButton" Classes="compactAction" Content="{Binding Text[UpdateCancelAction]}"
+                          Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}" Margin="0,0,6,4" />
+                  <Button x:Name="InstallUpdateButton" Classes="compactAction" Content="{Binding Text[UpdateInstallAction]}"
+                          Command="{Binding RequestInstallCommand}" Margin="0,0,6,4" />
+                </WrapPanel>
+                <Border x:Name="UpdateConfirmation" Background="{DynamicResource AppBackgroundBrush}" CornerRadius="8" Padding="10"
+                        IsVisible="{Binding IsConfirmationVisible}">
+                  <StackPanel Spacing="8">
+                    <TextBlock Text="{Binding Text[UpdateConfirmationTitle]}" FontWeight="SemiBold" />
+                    <TextBlock x:Name="UpdateConfirmationText" Text="{Binding ConfirmationText}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Text[UpdateInstallUnavailable]}" Classes="muted" IsVisible="{Binding !IsInstallationSupported}" />
+                    <WrapPanel>
+                      <Button x:Name="ConfirmUpdateButton" Classes="compactAction" Content="{Binding Text[UpdateConfirmAction]}"
+                              Command="{Binding ConfirmInstallCommand}" Margin="0,0,6,0" />
+                      <Button x:Name="DismissUpdateButton" Classes="compactAction" Content="{Binding Text[UpdateLaterAction]}"
+                              Command="{Binding DismissConfirmationCommand}" />
+                    </WrapPanel>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
             </Border>
           </StackPanel>
         </ScrollViewer>

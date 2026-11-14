@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     public void ConfigureSettings(MainWindowViewModel viewModel)
     {
         _settings = viewModel;
+        viewModel.CaptureWindowSettings = CaptureSettingsForUpdate;
         var saved = viewModel.WindowGeometry;
         Width = double.IsFinite(saved.Width) ? Math.Max(MinWidth, saved.Width) : 1240;
         Height = double.IsFinite(saved.Height) ? Math.Max(MinHeight, saved.Height) : 880;
@@ -48,6 +49,7 @@ public partial class MainWindow : Window
     {
         base.OnClosing(args);
         if (args.Cancel) return;
+        if (DataContext is MainWindowViewModel { IsPreparingUpdate: true }) { args.Cancel = true; return; }
         if (DataContext is MainWindowViewModel vm && !vm.TryStopEngineForClose()) { args.Cancel = true; return; }
         if (_settings is null) return;
         CaptureNormalBounds();
@@ -79,6 +81,29 @@ public partial class MainWindow : Window
         if (WindowState != WindowState.Normal) return;
         _normalBounds = new WindowGeometry { Width = Width, Height = Height, X = Position.X, Y = Position.Y };
         if (_settings is not null) _settings.WindowGeometry = _normalBounds;
+    }
+
+    // Фиксирует актуальную геометрию перед прямым выходом через Velopack без повторного сохранения при закрытии
+    private void CaptureSettingsForUpdate()
+    {
+        CaptureNormalBounds();
+        if (_settings is not null) _settings.WindowGeometry = _normalBounds with { IsMaximized = WindowState == WindowState.Maximized
+            || (WindowState == WindowState.Minimized && _lastMaximized) };
+    }
+
+    // Открывает только известную страницу выпусков; ссылки из описания версии не исполняются
+    private async void OpenReleases_Click(object? sender, RoutedEventArgs args)
+    {
+        try
+        {
+            if (!await Launcher.LaunchUriAsync(new Uri(ApplicationInfo.ReleasesUrl)))
+                throw new InvalidOperationException("Не удалось открыть страницу выпусков");
+        }
+        catch (Exception ex)
+        {
+            Trace.TraceError("Open releases: {0}", ex);
+            if (DataContext is MainWindowViewModel vm) vm.Events.Add($"{vm.Text["UpdateOpenReleasesError"]} {ApplicationInfo.ReleasesUrl}");
+        }
     }
 
     // Выбирает файл на самом узле; его путь не принимается от другого компьютера

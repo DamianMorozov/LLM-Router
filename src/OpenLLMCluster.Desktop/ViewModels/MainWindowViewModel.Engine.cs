@@ -28,7 +28,7 @@ public partial class MainWindowViewModel
     [ObservableProperty, NotifyPropertyChangedFor(nameof(CanStopEngine), nameof(IsModelLoading))]
     [NotifyCanExecuteChangedFor(nameof(StopEngineCommand))]
     private bool _isEngineStarting;
-    public bool CanEditEngine => !IsEngineBusy && !IsEngineRunning;
+    public bool CanEditEngine => !IsPreparingUpdate && !IsEngineBusy && !IsEngineRunning;
     public bool CanEditCoordinatorSettings => CanEditEngine && IsCoordinatorRole;
     public bool CanEditWorkerSettings => CanEditEngine && IsWorkerRole;
     public bool CanConfigureRpcFirewall => IsWorkerRole && CanConfigureFirewall;

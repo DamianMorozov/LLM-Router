@@ -3,6 +3,7 @@ namespace OpenLLMCluster.Desktop;
 /// <summary>Связывает оболочку, модель представления и оформление</summary>
 public partial class App : Application
 {
+    public ApplicationUpdateService? Updates { get; private set; }
     /// <summary>Загружает ресурсы оформления</summary>
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -10,14 +11,19 @@ public partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            Updates = new ApplicationUpdateService();
             desktop.MainWindow = CreateMainWindow(new ProfileStore());
+            if (desktop.MainWindow.DataContext is MainWindowViewModel viewModel)
+                viewModel.Events.Add($"{viewModel.Text[Updates.Status.MessageKey]} {Updates.ReleasesUrl}");
+        }
         base.OnFrameworkInitializationCompleted();
     }
 
     /// <summary>Создаёт окно с рабочими привязками языка, профиля и темы</summary>
     public MainWindow CreateMainWindow(ProfileStore store, LocalAgentHost? agentHost = null)
     {
-        var viewModel = new MainWindowViewModel(store, agentHost);
+        var viewModel = new MainWindowViewModel(store, agentHost, updateService: Updates);
         viewModel.Initialize();
         ApplyTheme(viewModel.ThemeIndex);
         viewModel.PropertyChanged += (_, args) =>

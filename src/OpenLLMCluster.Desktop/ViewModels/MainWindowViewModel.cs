@@ -11,6 +11,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private bool _startupLoadFailed;
     public WindowGeometry WindowGeometry { get; set; } = new();
     public Localizer Text { get; } = new();
+    public ApplicationUpdatesViewModel Updates { get; }
     public ObservableCollection<NodeViewModel> Nodes { get; } = [];
     public ObservableCollection<string> Checks { get; } = [];
     public ObservableCollection<string> Events { get; } = [];
@@ -20,7 +21,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] private int _languageIndex;
     [ObservableProperty] private int _themeIndex;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(IsWorkerRole), nameof(IsCoordinatorRole), nameof(IsCoordinatorMode))] private int _roleIndex;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(IsWorkerRole), nameof(IsCoordinatorRole), nameof(IsCoordinatorMode), nameof(CanViewNodes))]
+    private int _roleIndex;
     /// <summary>Включённое положение переключателя соответствует главному компьютеру</summary>
     public bool IsCoordinatorMode
     {
@@ -43,10 +45,15 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     /// <summary>Создаёт модель представления с подменяемым хранилищем для проверок</summary>
     public MainWindowViewModel(ProfileStore store, LocalAgentHost? agentHost = null, IAspNetRuntimeInstaller? runtimeInstaller = null,
-        LocalInstallationDiscovery? installationDiscovery = null, ILlamaPackageInstaller? llamaInstaller = null, EngineProcessHost? engineHost = null)
+        LocalInstallationDiscovery? installationDiscovery = null, ILlamaPackageInstaller? llamaInstaller = null, EngineProcessHost? engineHost = null,
+        ApplicationUpdateService? updateService = null)
     {
         _store = store;
         Text.SetLanguage("system");
+        var updates = updateService ?? new ApplicationUpdateService();
+        Updates = new ApplicationUpdatesViewModel(updates, Text,
+            () => IsEngineBusy || IsEngineStarting || IsEngineRunning || IsLocalModelBusy || IsLocalAgentBusy || IsLocalAgentRunning,
+            message => Events.Add(message), ct => InstallUpdateAsync(updates, ct));
         _llamaInstaller = llamaInstaller ?? new LlamaPackageInstaller();
         _engine = engineHost ?? new EngineProcessHost();
         _engine.OutputReceived += OnEngineOutput;
@@ -75,6 +82,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     protected override void OnPropertyChanged(PropertyChangedEventArgs args)
     {
         base.OnPropertyChanged(args);
+        if (args.PropertyName is nameof(IsEngineBusy) or nameof(IsEngineStarting) or nameof(IsEngineRunning)
+            or nameof(IsLocalModelBusy) or nameof(IsLocalAgentBusy) or nameof(IsLocalAgentRunning)) Updates?.Refresh();
         if (args.PropertyName is nameof(IsLocalModelBusy) or nameof(IsLocalAgentBusy) or nameof(IsLocalAgentRunning)
             or nameof(CanEditEngine) or nameof(RoleIndex))
         {
