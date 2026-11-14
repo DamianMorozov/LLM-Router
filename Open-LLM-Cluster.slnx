@@ -1,0 +1,23 @@
+<Solution>
+  <Folder Name="/Docs/">
+    <File Path="README.md" />
+    <File Path="READEME-DEV.md" />
+    <File Path="CONCEPT.md" />
+    <File Path="ARCHITECTURE.md" />
+    <File Path="TEST-Project.md" />
+    <File Path="TODO.md" />
+    <File Path="CHANGELOG.md" />
+    <File Path="LICENSE.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/OpenLLMCluster.Agent/OpenLLMCluster.Agent.csproj" />
+    <Project Path="src/OpenLLMCluster.Contracts/OpenLLMCluster.Contracts.csproj" />
+    <Project Path="src/OpenLLMCluster.Core/OpenLLMCluster.Core.csproj" />
+    <Project Path="src/OpenLLMCluster.Desktop/OpenLLMCluster.Desktop.csproj" />
+    <Project Path="src/OpenLLMCluster.Infrastructure/OpenLLMCluster.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OpenLLMCluster.EngineFixture/OpenLLMCluster.EngineFixture.csproj" />
+    <Project Path="tests/OpenLLMCluster.Tests/OpenLLMCluster.Tests.csproj" />
+  </Folder>
+</Solution>
