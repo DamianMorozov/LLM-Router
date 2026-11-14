@@ -56,7 +56,7 @@ try {
         $application = Join-Path $results 'current'
     } elseif ($IsLinux) {
         $appImage = Join-Path $packageRoot "$($metadata.PackId)-$($metadata.Channel).AppImage"
-        & chmod +x -- $appImage
+        & chmod +x $appImage
         if ($LASTEXITCODE -ne 0) { throw 'Не удалось разрешить исполнение AppImage' }
         Push-Location $results
         try {

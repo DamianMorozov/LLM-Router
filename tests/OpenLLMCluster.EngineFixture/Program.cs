@@ -6,6 +6,36 @@ public static class Program
     /// <summary>Эмулирует только CLI, TCP и HTTP-контракт для автономных проверок</summary>
     public static async Task Main(string[] args)
     {
+        if (args.FirstOrDefault() == "--fixture-top")
+        {
+            var cpuMode = args[1];
+            var marker = args[2];
+            await File.WriteAllTextAsync(marker + ".tmp", Environment.ProcessId.ToString());
+            File.Move(marker + ".tmp", marker);
+            if (cpuMode == "cancel") await Task.Delay(Timeout.Infinite);
+            if (cpuMode == "slow") await Task.Delay(6000);
+            if (cpuMode == "frameworks" && (!args.Contains("-F") || !args.Contains("-R")))
+            {
+                Console.Error.WriteLine("Для CPU не нужен сбор статистики библиотек и карт памяти процессов");
+                Environment.ExitCode = 2;
+                return;
+            }
+            Console.WriteLine("CPU usage: 90.0% user, 5.0% sys, 5.0% idle");
+            Console.WriteLine("CPU usage: 20.0% user, 5.0% sys, 75.0% idle");
+            return;
+        }
+        if (args.FirstOrDefault() == "--fixture-chmod")
+        {
+            var command = args[1..];
+            if (command.Length != 2 || command[0] != "+x" || !Path.IsPathFullyQualified(command[1]))
+            {
+                Console.Error.WriteLine("Команда несовместима с BSD chmod: ожидаются +x и один абсолютный путь");
+                Environment.ExitCode = 2;
+                return;
+            }
+            Console.WriteLine(JsonSerializer.Serialize(command));
+            return;
+        }
         if (args.Contains("--help")) { Console.WriteLine("--rpc --host --cache --list-devices"); return; }
         if (args.Contains("--version")) { Console.WriteLine("version: fixture (build 12318)"); return; }
         if (args.Contains("--list-devices"))

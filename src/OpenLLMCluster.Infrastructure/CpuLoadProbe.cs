@@ -1,7 +1,7 @@
 namespace OpenLLMCluster.Infrastructure;
 
 /// <summary>Измеряет общую загрузку CPU по разнице системных счётчиков, не по загрузке процесса Desktop</summary>
-public sealed class CpuLoadProbe
+public sealed class CpuLoadProbe(EngineCommandRunner? macRunner = null)
 {
     private readonly object _sync = new();
     private (ulong Idle, ulong Total)? _previous;
@@ -28,7 +28,7 @@ public sealed class CpuLoadProbe
                 return Calculate(previous.Value.Idle, previous.Value.Total, current.Idle, current.Total);
             }
         }
-        catch (OperationCanceledException) { throw; }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex) { Trace.TraceWarning("Измерение CPU: {0}", ex.GetType().Name); return null; }
     }
 
@@ -45,26 +45,15 @@ public sealed class CpuLoadProbe
         return (values[3] + (values.Length > 4 ? values[4] : 0), values.Aggregate(0UL, (sum, value) => sum + value));
     }
 
-    // Системная утилита macOS показывает второй интервальный снимок вместо среднего с запуска ОС
-    private static async Task<double?> ReadMacAsync(CancellationToken ct)
+    // Второй снимок top даёт интервальный CPU без дорогого обхода библиотек и карт памяти процессов
+    private async Task<double?> ReadMacAsync(CancellationToken ct)
     {
-        using var process = new Process { StartInfo = new ProcessStartInfo("/usr/bin/top")
-            { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true } };
-        foreach (var arg in new[] { "-l", "2", "-s", "1", "-n", "0" }) process.StartInfo.ArgumentList.Add(arg);
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(5));
-        try
-        {
-            process.Start();
-            var output = process.StandardOutput.ReadToEndAsync(timeout.Token);
-            var error = process.StandardError.ReadToEndAsync(timeout.Token);
-            await process.WaitForExitAsync(timeout.Token);
-            var line = (await output).Split('\n').LastOrDefault(value => value.StartsWith("CPU usage:", StringComparison.Ordinal));
-            if (process.ExitCode != 0 || line is null) { Trace.TraceWarning("CPU top: {0}", await error); return null; }
-            var idle = line.Split(',').Last().Trim().Split('%')[0];
-            return Math.Clamp(100 - double.Parse(idle, System.Globalization.CultureInfo.InvariantCulture), 0, 100);
-        }
-        finally { try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { } }
+        var plan = new LaunchPlan("/usr/bin/top", ["-l", "2", "-s", "1", "-n", "0", "-F", "-R"]);
+        var output = await (macRunner ?? new()).RunAsync(plan, ct);
+        var line = output.Split('\n').LastOrDefault(value => value.StartsWith("CPU usage:", StringComparison.Ordinal));
+        if (line is null) { Trace.TraceWarning("CPU top: отсутствует интервальный снимок"); return null; }
+        var idle = line.Split(',').Last().Trim().Split('%')[0];
+        return Math.Clamp(100 - double.Parse(idle, System.Globalization.CultureInfo.InvariantCulture), 0, 100);
     }
 
     [DllImport("kernel32.dll", SetLastError = true)]

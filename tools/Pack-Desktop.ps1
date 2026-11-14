@@ -129,7 +129,7 @@ try {
     }
     if (!$IsWindows) {
         foreach ($entry in @($expectedDesktop, $expectedAgent)) {
-            & chmod +x -- (Join-Path $payload $entry)
+            & chmod +x (Join-Path $payload $entry)
             if ($LASTEXITCODE -ne 0) { throw "Не удалось сделать исполняемым $entry" }
         }
     }

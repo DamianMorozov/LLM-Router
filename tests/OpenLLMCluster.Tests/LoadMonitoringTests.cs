@@ -40,6 +40,40 @@ public sealed class LoadMonitoringTests
         { Assert.NotNull(load); Assert.InRange(load.Value, 0, 100); }
     }
 
+    [Theory]
+    [InlineData("slow")]
+    [InlineData("frameworks")]
+    public async Task MacCpuReturnsSecondSampleOnSlowHostWithoutUnneededMemoryCollection(string mode)
+    {
+        var marker = Path.Combine(Path.GetTempPath(), "olc-top-" + Guid.NewGuid().ToString("N"));
+        var probe = new CpuLoadProbe(CreateMacRunner(mode, marker));
+        try
+        {
+            Assert.Equal(25d, await ReadMacAsync(probe, TestContext.Current.CancellationToken));
+        }
+        finally { File.Delete(marker); }
+    }
+
+    [Fact]
+    public async Task MacCpuCancellationStopsItsChildProcess()
+    {
+        var marker = Path.Combine(Path.GetTempPath(), "olc-top-" + Guid.NewGuid().ToString("N"));
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var read = ReadMacAsync(new CpuLoadProbe(CreateMacRunner("cancel", marker)), cancellation.Token);
+        try
+        {
+            using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            while (!File.Exists(marker)) await Task.Delay(25, startup.Token);
+            using var process = Process.GetProcessById(int.Parse(await File.ReadAllTextAsync(marker, startup.Token)));
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => read);
+            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await process.WaitForExitAsync(cleanup.Token);
+            Assert.True(process.HasExited);
+        }
+        finally { cancellation.Cancel(); File.Delete(marker); }
+    }
+
     [AvaloniaFact]
     public async Task OverviewShowsEachComputerAndHidesStaleNumbersWhenAgentFails()
     {
@@ -97,6 +131,21 @@ public sealed class LoadMonitoringTests
         Assert.False(vm.Computers[0].HasCpu);
         Assert.Equal(vm.Text["MeasurementUnavailable"], vm.Computers[0].CpuLabel);
     }
+
+    // Подменяет только исполняемый файл top отдельным процессом, сохраняя реальные аргументы сборщика
+    private static EngineCommandRunner CreateMacRunner(string mode, string marker) => new(plan =>
+    {
+        Assert.Equal("/usr/bin/top", plan.Executable);
+        Assert.Equal(new[] { "-l", "2", "-s", "1", "-n", "0" }, plan.Arguments.Take(6));
+        var fixture = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "OpenLLMCluster.EngineFixture", "bin",
+            new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name, "net10.0", "OpenLLMCluster.EngineFixture.dll"));
+        return EngineCommandRunner.CreateStartInfo(new("dotnet", [fixture, "--fixture-top", mode, marker, .. plan.Arguments]));
+    });
+
+    // Позволяет проверить ветку macOS с настоящим дочерним процессом на Windows и Linux
+    private static Task<double?> ReadMacAsync(CpuLoadProbe probe, CancellationToken ct)
+        => (Task<double?>)typeof(CpuLoadProbe).GetMethod("ReadMacAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .Invoke(probe, [ct])!;
 
     // Создаёт явно тестовый снимок, не подставляемый в рабочую диагностику
     private static NodeSnapshot Snapshot(string host, double cpu, double gpu) => new()

@@ -6,6 +6,49 @@ public sealed class PlatformPackagingTests : IDisposable
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "olc-pack-" + Guid.NewGuid().ToString("N"));
 
     [Theory]
+    [InlineData("Pack-Desktop.ps1")]
+    [InlineData("Test-DesktopPackage.ps1")]
+    public async Task ExecutablePermissionCommandUsesPortableArgumentsAndPreservesSpaces(string script)
+    {
+        Directory.CreateDirectory(_directory);
+        var harness = """
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null
+            $errors = $null
+            $ast = [Management.Automation.Language.Parser]::ParseFile($env:OLC_TEST_SCRIPT, [ref]$tokens, [ref]$errors)
+            if ($errors.Count) { throw 'Неверный синтаксис скрипта' }
+            $commands = @($ast.FindAll({ param($node)
+                $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'chmod'
+            }, $true))
+            if ($commands.Count -ne 1) { throw 'Ожидается одна команда установки права запуска' }
+            $payload = $env:OLC_TEST_ROOT
+            $entry = 'Desktop with spaces'
+            $appImage = Join-Path $payload $entry
+            $command = $commands[0]
+            $executable = $command.CommandElements[0].Extent
+            $call = $command.Extent.Text.Remove($executable.StartOffset - $command.Extent.StartOffset, $executable.Text.Length)
+            $call = $call.Insert($executable.StartOffset - $command.Extent.StartOffset, 'dotnet $env:OLC_TEST_FIXTURE --fixture-chmod')
+            & ([scriptblock]::Create($call))
+            if ($LASTEXITCODE -ne 0) { throw 'Нативный процесс отклонил аргументы chmod' }
+            """;
+        var start = new ProcessStartInfo("pwsh") { WorkingDirectory = RepositoryRoot(), RedirectStandardOutput = true, RedirectStandardError = true };
+        start.Environment["OLC_TEST_SCRIPT"] = Path.Combine(RepositoryRoot(), "tools", script);
+        start.Environment["OLC_TEST_ROOT"] = Path.Combine(_directory, "publish with spaces");
+        start.Environment["OLC_TEST_FIXTURE"] = Path.Combine(RepositoryRoot(), "tests", "OpenLLMCluster.EngineFixture", "bin",
+            new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name, "net10.0", "OpenLLMCluster.EngineFixture.dll");
+        foreach (var argument in new[] { "-NoProfile", "-Command", harness }) start.ArgumentList.Add(argument);
+        using var process = Process.Start(start)!;
+        var stdout = process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
+        var stderr = process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+        await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+        var output = await stdout;
+        Assert.True(process.ExitCode == 0, output + await stderr);
+        using var arguments = JsonDocument.Parse(output);
+        Assert.Equal(new[] { "+x", Path.Combine(_directory, "publish with spaces", "Desktop with spaces") },
+            arguments.RootElement.EnumerateArray().Select(value => value.GetString()).ToArray());
+    }
+
+    [Theory]
     [InlineData("win-x64", "--framework", "net10.0-x64-runtime,net10.0-x64-aspnetcore", ".ico")]
     [InlineData("linux-x64", "--compression", "gzip", ".png")]
     [InlineData("osx-arm64", "--bundleId", "io.github.damianmorozov.openllmcluster", ".icns")]

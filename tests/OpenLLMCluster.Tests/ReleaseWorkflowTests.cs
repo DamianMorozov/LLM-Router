@@ -7,6 +7,35 @@ public sealed class ReleaseWorkflowTests : IDisposable
     private static readonly string[] _rids = ["win-x64", "linux-x64", "osx-arm64", "osx-x64"];
 
     [Fact]
+    public async Task ReleaseRootIsCanonicalBeforeArtifactUpload()
+    {
+        var workflow = File.ReadAllText(Path.Combine(RepositoryRoot(), ".github", "workflows", "release.yml"));
+        var configured = System.Text.RegularExpressions.Regex.Match(workflow, @"(?m)^      OLC_RELEASE_ROOT: (.+)\r?$").Groups[1].Value.Trim();
+        Assert.NotEmpty(configured);
+        var workspace = Path.Combine(_directory, "workspace with spaces", "repository");
+        var initial = configured.Replace("${{ github.workspace }}", workspace, StringComparison.Ordinal);
+        Directory.CreateDirectory(workspace);
+        var environmentFile = Path.Combine(_directory, "github-env.txt");
+        var step = System.Text.RegularExpressions.Regex.Match(workflow,
+            @"(?m)^      - name: Resolve release root\r?\n        run: \|\r?\n(?<body>(?:          [^\r\n]*\r?\n)+)");
+        var script = string.Join('\n', step.Groups["body"].Value.Split('\n').Select(line => line.Length >= 10 ? line[10..] : line));
+        var start = new ProcessStartInfo("pwsh") { WorkingDirectory = workspace, RedirectStandardOutput = true, RedirectStandardError = true };
+        start.Environment["OLC_RELEASE_ROOT"] = initial;
+        start.Environment["GITHUB_ENV"] = environmentFile;
+        foreach (var argument in new[] { "-NoProfile", "-Command", script.Length > 0 ? script : "exit 0" }) start.ArgumentList.Add(argument);
+        using var process = Process.Start(start)!;
+        var stdout = process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
+        var stderr = process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+        await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+        Assert.True(process.ExitCode == 0, await stdout + await stderr);
+        var root = File.Exists(environmentFile)
+            ? Assert.Single(File.ReadAllLines(environmentFile), line => line.StartsWith("OLC_RELEASE_ROOT=", StringComparison.Ordinal))[17..] : initial;
+        Assert.Equal(Path.GetFullPath(Path.Combine(workspace, "..", "Releases")), root);
+        Assert.False(Directory.Exists(root), "Настройка окружения не должна создавать каталог публикации");
+        Assert.DoesNotContain(root.Split(['/', '\\']), part => part is "." or "..");
+    }
+
+    [Fact]
     public async Task ReleasePlanValidatesVersionAndWritesSafeGithubOutputs()
     {
         Directory.CreateDirectory(_directory);

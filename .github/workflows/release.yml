@@ -76,6 +76,10 @@ jobs:
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: 10.0.x
+      - name: Resolve release root
+        run: |
+          $releaseRoot = [IO.Path]::GetFullPath($env:OLC_RELEASE_ROOT)
+          "OLC_RELEASE_ROOT=$releaseRoot" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8NoBOM
       - name: Linux dependencies
         if: runner.os == 'Linux'
         run: |
