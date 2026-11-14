@@ -1,0 +1,151 @@
+name: Release draft
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag matching Version (for example v0.2.300)
+        required: true
+        type: string
+      channel:
+        description: Update channel
+        required: true
+        default: stable
+        type: choice
+        options: [stable, beta]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  OLC_TAG: ${{ inputs.tag || github.ref_name }}
+  OLC_CHANNEL: ${{ inputs.channel || (contains(github.ref_name, '-') && 'beta' || 'stable') }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      channel: ${{ steps.plan.outputs.channel }}
+      commit: ${{ steps.plan.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.OLC_TAG }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate existing tag and version
+        id: plan
+        shell: pwsh
+        run: ./tools/Get-ReleasePlan.ps1 -ReleaseTag $env:OLC_TAG -Channel $env:OLC_CHANNEL -RequireTagMatch -GitHubOutputPath $env:GITHUB_OUTPUT
+
+  packages:
+    name: Package (${{ matrix.rid }})
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {rid: win-x64, os: windows-2025}
+          - {rid: linux-x64, os: ubuntu-24.04}
+          - {rid: osx-arm64, os: macos-15}
+          - {rid: osx-x64, os: macos-15-intel}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      OLC_VERSION: ${{ needs.plan.outputs.version }}
+      OLC_RID: ${{ matrix.rid }}
+      OLC_RELEASE_ROOT: ${{ github.workspace }}/../Releases
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y squashfs-tools libfontconfig1 libx11-6 libice6 libsm6
+          if ($LASTEXITCODE -ne 0) { throw 'Linux dependencies failed' }
+      - name: Restore
+        run: dotnet restore Open-LLM-Cluster.slnx
+      - name: Build
+        run: dotnet build Open-LLM-Cluster.slnx -c Release --no-restore
+      - name: Tests
+        run: dotnet test --project tests/OpenLLMCluster.Tests/OpenLLMCluster.Tests.csproj -c Release --no-build
+      - name: Restore previous public package if available
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          ./tools/Restore-ReleaseBaseline.ps1
+          -PackageDirectory "$env:OLC_RELEASE_ROOT/$env:OLC_VERSION/$env:OLC_RID"
+          -RuntimeIdentifier $env:OLC_RID -Channel $env:OLC_CHANNEL
+      - name: Publish and pack
+        run: >-
+          ./tools/Publish-Desktop.ps1 -RuntimeIdentifier $env:OLC_RID
+          -ReleaseTag $env:OLC_TAG -Channel $env:OLC_CHANNEL
+          -ReleaseRoot $env:OLC_RELEASE_ROOT -Pack
+      - name: Native package smoke check
+        run: >-
+          ./tools/Test-DesktopPackage.ps1
+          -PackageDirectory "$env:OLC_RELEASE_ROOT/$env:OLC_VERSION/$env:OLC_RID"
+          -ResultsDirectory "$env:RUNNER_TEMP/package-smoke-$env:OLC_RID"
+      - name: Upload only release files and public metadata
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: packages-${{ matrix.rid }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+          path: |
+            ${{ env.OLC_RELEASE_ROOT }}/${{ env.OLC_VERSION }}/${{ matrix.rid }}/*.exe
+            ${{ env.OLC_RELEASE_ROOT }}/${{ env.OLC_VERSION }}/${{ matrix.rid }}/*.zip
+            ${{ env.OLC_RELEASE_ROOT }}/${{ env.OLC_VERSION }}/${{ matrix.rid }}/*.AppImage
+            ${{ env.OLC_RELEASE_ROOT }}/${{ env.OLC_VERSION }}/${{ matrix.rid }}/*.nupkg
+            ${{ env.OLC_RELEASE_ROOT }}/${{ env.OLC_VERSION }}/${{ matrix.rid }}/releases.*.json
+            ${{ env.OLC_RELEASE_ROOT }}/${{ env.OLC_VERSION }}/${{ matrix.rid }}/assets.*.json
+            ${{ env.OLC_RELEASE_ROOT }}/${{ env.OLC_VERSION }}/${{ matrix.rid }}/RELEASES-*
+            ${{ env.OLC_RELEASE_ROOT }}/${{ env.OLC_VERSION }}/${{ matrix.rid }}/SHA256SUMS
+            ${{ env.OLC_RELEASE_ROOT }}/${{ env.OLC_VERSION }}/${{ matrix.rid }}/publish/publication.json
+
+  draft:
+    needs: [plan, packages]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: packages-*
+          path: ${{ runner.temp }}/release-input
+          merge-multiple: false
+      - name: Validate complete set and create or replace draft assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OLC_COMMIT: ${{ needs.plan.outputs.commit }}
+          OLC_VERSION: ${{ needs.plan.outputs.version }}
+        run: >-
+          ./tools/Publish-ReleaseDraft.ps1 -InputDirectory "$env:RUNNER_TEMP/release-input"
+          -OutputDirectory "$env:GITHUB_WORKSPACE/../Releases/$env:OLC_VERSION/github"
+          -ReleaseTag $env:OLC_TAG -Channel $env:OLC_CHANNEL -Commit $env:OLC_COMMIT
