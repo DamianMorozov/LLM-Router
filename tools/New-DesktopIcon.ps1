@@ -1,4 +1,4 @@
-﻿# Создаёт SVG, PNG и многоразмерный ICO из одного векторного знака
+﻿# Создаёт SVG, PNG, многоразмерный ICO и ICNS из одного векторного знака
 param([string]$OutputDirectory = (Join-Path $PSScriptRoot '../src/OpenLLMCluster.Desktop/Assets'))
 
 $ErrorActionPreference = 'Stop'
@@ -62,8 +62,8 @@ try {
     $canvas.FillPath($fill, $background)
     $canvas.DrawPath($border, $background)
     $canvas.FillPath([Drawing.Brushes]::White, $letters)
-    $sizes = @(16, 20, 24, 32, 40, 48, 64, 128, 256)
-    $images = foreach ($size in $sizes) {
+    $sizes = @(16, 20, 24, 32, 40, 48, 64, 128, 256, 512, 1024)
+    $pngImages = foreach ($size in $sizes) {
         $image = [Drawing.Bitmap]::new($size, $size)
         $graphics = [Drawing.Graphics]::FromImage($image)
         $graphics.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
@@ -75,6 +75,21 @@ try {
         $stream.Dispose(); $graphics.Dispose(); $image.Dispose()
         $result
     }
+    $images = @($pngImages | Where-Object { $_.Size -le 256 })
+    $macImages = @($pngImages | Where-Object { $_.Size -ge 128 })
+    $macWriter = [IO.BinaryWriter]::new([IO.File]::Create((Join-Path $OutputDirectory 'open-llm-cluster.icns')))
+    try {
+        $macWriter.Write([Text.Encoding]::ASCII.GetBytes('icns'))
+        $length = 8
+        foreach ($image in $macImages) { $length += 8 + $image.Bytes.Length }
+        $macWriter.Write([Net.IPAddress]::HostToNetworkOrder([int]$length))
+        foreach ($image in $macImages) {
+            $type = switch ($image.Size) { 128 { 'ic07' } 256 { 'ic08' } 512 { 'ic09' } 1024 { 'ic10' } }
+            $macWriter.Write([Text.Encoding]::ASCII.GetBytes($type))
+            $macWriter.Write([Net.IPAddress]::HostToNetworkOrder([int]($image.Bytes.Length + 8)))
+            $macWriter.Write([byte[]]$image.Bytes)
+        }
+    } finally { $macWriter.Dispose() }
     $iconStream = [IO.File]::Create((Join-Path $OutputDirectory 'open-llm-cluster.ico'))
     $writer = [IO.BinaryWriter]::new($iconStream)
     try {
@@ -92,6 +107,6 @@ try {
     finally { $writer.Dispose() }
     $canvas.Dispose(); $bitmap.Dispose(); $fill.Dispose(); $border.Dispose()
     $background.Dispose(); $letters.Dispose(); $center.Dispose(); $font.Dispose()
-    Write-Output "Созданы SVG, PNG и ICO (16–256 px): $OutputDirectory"
+    Write-Output "Созданы SVG, PNG, ICO (16–256 px) и ICNS (128–1024 px): $OutputDirectory"
 }
 catch { Write-Error "Не удалось создать иконку: $_"; throw }
