@@ -14,6 +14,12 @@
 
 Целевая платформа — .NET 10. Avalonia и сетевые библиотеки поддерживают Windows, Linux и macOS. Нативная работа на каждой ОС требует отдельной проверки; сборка из Windows её не заменяет.
 
+## Проверки и подготовка GitHub-релиза
+
+[Checks](.github/workflows/ci.yml) собирает решение и выполняет тесты на Windows, Linux и двух архитектурах macOS. [Release draft](.github/workflows/release.yml) сначала проверяет существующий тег и фиксирует commit SHA, затем параллельно готовит и проверяет четыре нативных пакета. [Publish-ReleaseDraft.ps1](tools/Publish-ReleaseDraft.ps1) получает результаты всех платформ, проверяет метаданные и SHA256 и только после этого обращается к GitHub API с правом записи.
+
+Сборочные задания имеют `contents: read`, завершающее — `contents: write`. Их токен остаётся в окружении CI и не попадает в приложение; клиент обновления использует только публичные выпуски без токена. Файлы подготавливаются в `../Releases/<версия>/<RID>`, общий комплект — в `../Releases/<версия>/github`. Workflow создаёт только черновик; публикация после приёмки выполняется вручную. [Порядок запуска и ограничения](README-DEV.md#github-actions-и-черновик-релиза).
+
 ## Зависимости
 
 ```mermaid
@@ -30,6 +36,16 @@ flowchart TD
 Core не зависит от UI, gRPC или конкретного ускорителя. Contracts не зависит от Avalonia. Desktop не использует серверные классы агента.
 
 OpenAI-compatible client подключается к API кластера на главном ПК. Выбранный API-порт обслуживает отдельный процесс inference-шлюза из Agent. Он проверяет Bearer-ключ и Effort, затем передаёт запрос локальному llama-server на автоматически выделенном loopback-порту. Desktop управляет обоими процессами, сам HTTP не обслуживает. Диагностические порты Agent и вычислительные RPC-порты не являются адресами inference API.
+
+## Обновление приложения
+
+[Program](src/OpenLLMCluster.Desktop/Program.cs) запускает bootstrap Velopack перед Avalonia с выключенным автоматическим применением скачанных пакетов. Затем [App](src/OpenLLMCluster.Desktop/App.axaml.cs) создаёт `ApplicationUpdateService`, сохраняет его в `App.Updates` и добавляет локализованный исходный статус со ссылкой на Releases в журнал окна. Определение установки не обращается к сети.
+
+[ApplicationUpdateService](src/OpenLLMCluster.Desktop/Services/ApplicationUpdateService.cs) управляет снимками состояния и блокирует параллельные операции. [IApplicationUpdateAdapter](src/OpenLLMCluster.Desktop/Services/ApplicationUpdateModels.cs) отделяет эти состояния от библиотеки обновления. [VelopackUpdateAdapter](src/OpenLLMCluster.Desktop/Services/VelopackUpdateAdapter.cs) использует настоящий `UpdateManager` / `GithubSource`, канал установленного пакета и публичный репозиторий без токена. Проверка выполняется по запросу; она получает только метаданные и описание новой версии. Обычная папка без установки возвращает `NotInstalled` и ссылку на GitHub Releases.
+
+[UpdateFeedDownloader](src/OpenLLMCluster.Desktop/Services/UpdateFeedDownloader.cs) передаёт токен отмены в HTTP-запросы метаданных: API `CheckForUpdatesAsync` закреплённой версии Velopack сам не принимает CancellationToken. Один запрос ограничен 30 секундами. `DownloadAsync` скачивает выбранный full-пакет через `UpdateManager` и проверяет размер и хеш, включая ранее скачанный файл. Ошибка или отмена сохраняет выбранную версию для повтора; готовность объявляется только после проверки.
+
+[ApplicationUpdatesViewModel](src/OpenLLMCluster.Desktop/ViewModels/ApplicationUpdatesViewModel.cs) связывает единый сервис `App.Updates` с компактной RU/EN-карточкой на вкладке «Обновление» перед журналом: версии, текст описания, прогресс, команды проверки/скачивания/отмены и отдельное подтверждение установки. События сервиса передаются в поток UI, закрытие окна отменяет незавершённую операцию. Описание версии — обычный выделяемый текст. При активной модели, агенте или подготовке файлов подтверждение предупреждает об остановке работы. [MainWindowViewModel.Update](src/OpenLLMCluster.Desktop/ViewModels/MainWindowViewModel.Update.cs) подключает подтверждение к `ApplicationUpdateService.ApplyAsync`: повторная проверка пакета и обновлятора → блокировка UI/закрытия → отмена и ожидание текущих операций → закрытие шлюза и остановка собственных движка/Agent → проверка освобождения их портов → снимок окна и сохранение разрешённых настроек → штатный `ApplyUpdatesAndRestart`. При ошибке применение не продолжается, интерфейс разблокируется, процессы остаются остановленными. Обновление не удаляет профили, TLS-идентичность, веса или установленный llama.cpp и не обновляет удалённые ПК.
 
 ## Рабочие компоненты
 
@@ -98,6 +114,8 @@ sequenceDiagram
 
 В [проекте Desktop](src/OpenLLMCluster.Desktop/OpenLLMCluster.Desktop.csproj) цель после `Publish` публикует Agent с теми же Configuration, RuntimeIdentifier и SelfContained в подкаталог готового приложения. Desktop не ссылается на серверную сборку агента; процессы разделены.
 
+Поставка обоих компонентов — framework-dependent: .NET Runtime 10 и ASP.NET Core Runtime 10 устанавливаются на каждом ПК отдельно. [Параметры публикации](build/Publication.props) и [проверки](build/Publication.targets) запрещают включение runtime в общий пакет. [Publish-Desktop.ps1](tools/Publish-Desktop.ps1) проверяет фактические ссылки runtimeconfig и отсутствие файлов runtime. На Windows `-PackWindows` передаёт обе зависимости через `vpk pack --framework`; нативный Setup проверяет их до запуска Desktop. Portable и пакеты Linux/macOS требуют предварительной установки runtime. Кнопка восстановления зависимости Agent сохраняется; она доступна, когда сам Desktop уже смог запуститься.
+
 Диагностический HTTP/2 без TLS сохранён для совместимости; контракт управления в нём запрещён. TLS включается явно и использует закрепление SHA-256 без доверия первому подключению. Для INodeControl одновременно требуются TLS, AllowRemoteControl и сильный ключ. Сравнение ключей выполняется без вывода значений в журнал. Защита канала управления не добавляет TLS в собственный вычислительный RPC llama.cpp.
 
 Предпросмотр команды предназначен для просмотра массива аргументов и не является скриптом PowerShell, Bash или Zsh. Запуск выполняется отдельной командой UI после проверок.
@@ -149,7 +167,7 @@ sequenceDiagram
 ## Документы
 
 - [Обзор и запуск](README.md)
-- [Подробная настройка и разработка](READEME-DEV.md)
+- [Подробная настройка и разработка](README-DEV.md)
 - [Концепция продукта](CONCEPT.md)
 - [Проверки](TEST-Project.md)
 - [Задачи](TODO.md)
