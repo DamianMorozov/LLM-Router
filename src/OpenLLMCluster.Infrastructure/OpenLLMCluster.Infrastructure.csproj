@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../OpenLLMCluster.Core/OpenLLMCluster.Core.csproj" />
+    <ProjectReference Include="../OpenLLMCluster.Contracts/OpenLLMCluster.Contracts.csproj" />
+    <PackageReference Include="MagicOnion.Client" />
+    <PackageReference Include="Grpc.Net.Client" />
+  </ItemGroup>
+</Project>
