@@ -48,12 +48,14 @@ public sealed class ModelLifecycleDesktopTests : IDisposable
         Assert.Equal(3, vm.MonitorIntervalSeconds);
     }
 
-    [AvaloniaFact]
-    public async Task OverviewShowsActualLoadStagesAndBecomesReadyOnlyAfterApiReadiness()
+    [AvaloniaTheory]
+    [InlineData("progress")]
+    [InlineData("progress-delayed-listen")]
+    public async Task OverviewShowsActualLoadStagesAndBecomesReadyOnlyAfterApiReadiness(string mode)
     {
         using var fixture = new EngineProcessTests();
         var profile = fixture.CreateProfile(NodeRole.Coordinator);
-        using var host = new EngineProcessHost(EngineProcessTests.CreateRunner("progress"));
+        using var host = new EngineProcessHost(EngineProcessTests.CreateRunner(mode));
         using var vm = CreateViewModel(profile, host);
         var window = new MainWindow { DataContext = vm };
         window.Show();
@@ -67,15 +69,20 @@ public sealed class ModelLifecycleDesktopTests : IDisposable
             Assert.False(vm.IsEngineRunning);
             Assert.Equal(vm.Text["ModelLoadingWeights"], window.FindControl<TextBlock>("ModelLoadStageText")!.Text);
             Assert.Contains(Path.GetFileName(profile.ModelPath), window.FindControl<TextBlock>("OverviewModelName")!.Text);
-            using var client = new HttpClient();
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
             client.DefaultRequestHeaders.Authorization = new("Bearer", vm.ServerApiKey);
-            await WaitUntilAsync(() => host.BaseUri is not null);
-            await client.PostAsync(new Uri(host.BaseUri!, "fixture/load-stage?stage=context"), null);
+            await WaitUntilAsync(() => IsLoadingApiAvailableAsync(client, host));
+            Assert.False(start.IsCompleted);
+            Assert.False(vm.IsEngineRunning);
+            using var context = await client.PostAsync(new Uri(host.BaseUri!, "fixture/load-stage?stage=context"), null, TestContext.Current.CancellationToken);
+            context.EnsureSuccessStatusCode();
             await WaitUntilAsync(() => window.FindControl<TextBlock>("ModelLoadStageText")!.Text == vm.Text["ModelCreatingContext"]);
-            await client.PostAsync(new Uri(host.BaseUri!, "fixture/load-stage?stage=warmup"), null);
+            using var warmup = await client.PostAsync(new Uri(host.BaseUri!, "fixture/load-stage?stage=warmup"), null, TestContext.Current.CancellationToken);
+            warmup.EnsureSuccessStatusCode();
             await WaitUntilAsync(() => window.FindControl<TextBlock>("ModelLoadStageText")!.Text == vm.Text["ModelWarmingUp"]);
             Assert.True(progress.IsIndeterminate);
-            await client.PostAsync(new Uri(host.BaseUri!, "fixture/load-stage?stage=ready"), null);
+            using var ready = await client.PostAsync(new Uri(host.BaseUri!, "fixture/load-stage?stage=ready"), null, TestContext.Current.CancellationToken);
+            ready.EnsureSuccessStatusCode();
             await start;
             Dispatcher.UIThread.RunJobs();
             Assert.True(vm.IsEngineRunning, vm.EngineStatus);
@@ -189,16 +196,37 @@ public sealed class ModelLifecycleDesktopTests : IDisposable
         RpcPort = profile.RpcPort, ApiPort = profile.ApiPort, EngineStartupTimeoutSeconds = 20, AutoMonitor = false
     };
 
+    // Проверяет доступность шлюза и тестового движка до отправки команд этапов загрузки
+    private static async Task<bool> IsLoadingApiAvailableAsync(HttpClient client, EngineProcessHost host)
+    {
+        if (host.BaseUri is not { } address) return false;
+        try
+        {
+            using var response = await client.GetAsync(new Uri(address, "health"), TestContext.Current.CancellationToken);
+            if (response.StatusCode == HttpStatusCode.BadGateway) return false;
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal("loading model", body.RootElement.GetProperty("status").GetString());
+            return true;
+        }
+        catch (HttpRequestException) { return false; }
+        catch (OperationCanceledException) when (!TestContext.Current.CancellationToken.IsCancellationRequested) { return false; }
+    }
+
+    // Преобразует проверку привязок в общий цикл ожидания
+    private static Task WaitUntilAsync(Func<bool> condition, double seconds = 15)
+        => WaitUntilAsync(() => Task.FromResult(condition()), seconds);
+
     // Ожидает наблюдаемый результат, продолжая обработку привязок интерфейса
-    private static async Task WaitUntilAsync(Func<bool> condition, double seconds = 15)
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition, double seconds = 15)
     {
         var timeout = Stopwatch.StartNew();
-        while (!condition() && timeout.Elapsed.TotalSeconds < seconds)
+        while (!await condition() && timeout.Elapsed.TotalSeconds < seconds)
         {
             await Task.Delay(30, TestContext.Current.CancellationToken);
             Dispatcher.UIThread.RunJobs();
         }
-        Assert.True(condition(), "Не дождались проверяемого состояния");
+        Assert.True(await condition(), "Не дождались проверяемого состояния");
     }
 
     /// <summary>Удаляет только временные настройки проверки</summary>

@@ -47,11 +47,12 @@ public static class Program
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls(new UriBuilder("http", address.ToString(), port).Uri.ToString());
         var app = builder.Build();
-        var loading = mode is "loading" or "progress";
-        if (mode == "progress") Console.WriteLine("srv load_model: loading model 'fixture.gguf'");
+        var progress = mode is "progress" or "progress-delayed-listen";
+        var loading = mode == "loading" || progress;
+        if (progress) Console.WriteLine("srv load_model: loading model 'fixture.gguf'");
         app.MapPost("/fixture/load-stage", (HttpContext context) =>
         {
-            if (mode != "progress" || !Authorized(context)) return Results.Unauthorized();
+            if (!progress || !Authorized(context)) return Results.Unauthorized();
             var stage = context.Request.Query["stage"].ToString();
             if (stage == "context") Console.WriteLine("srv load_model: initializing, n_slots = 1, n_ctx_slot = 8192");
             if (stage == "warmup") Console.WriteLine("common_init_from_params: warming up the model with an empty run");
@@ -69,6 +70,7 @@ public static class Program
             : Results.Unauthorized());
         app.MapPost("/v1/chat/completions", (Func<HttpContext, Task<IResult>>)CompleteAsync);
         app.MapPost("/v1/responses", (Func<HttpContext, Task<IResult>>)CompleteAsync);
+        if (mode == "progress-delayed-listen") await Task.Delay(2000);
         await app.RunAsync();
     }
 

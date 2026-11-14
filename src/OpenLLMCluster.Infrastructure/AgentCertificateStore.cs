@@ -27,9 +27,11 @@ public sealed class AgentCertificateStore(string? path = null)
             encoded = Convert.ToBase64String(created.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx));
             _store.Save(new() { ["certificate"] = encoded });
         }
-        // SChannel Windows требует пользовательский контейнер ключа для TLS сервера; временный контейнер удаляется при Dispose
+        // SChannel требует UserKeySet; macOS использует временный keychain без неподдерживаемого EphemeralKeySet
+        // PersistKeySet не задаётся: постоянная идентичность остаётся только в защищённом хранилище
         var flags = OperatingSystem.IsWindows() ? System.Security.Cryptography.X509Certificates.X509KeyStorageFlags.UserKeySet
-            : System.Security.Cryptography.X509Certificates.X509KeyStorageFlags.EphemeralKeySet;
+            : OperatingSystem.IsMacOS() ? System.Security.Cryptography.X509Certificates.X509KeyStorageFlags.DefaultKeySet
+                : System.Security.Cryptography.X509Certificates.X509KeyStorageFlags.EphemeralKeySet;
         return System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadPkcs12(Convert.FromBase64String(encoded), null, flags);
     }
 

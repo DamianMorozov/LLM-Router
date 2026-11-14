@@ -7,6 +7,28 @@ public sealed class SecureAgentTests : IDisposable
     private readonly string _key = LocalAgentHost.GenerateToken();
 
     [Fact]
+    public void ReloadedIdentityPreservesCertificateAndUsablePrivateKey()
+    {
+        var identity = new AgentCertificateStore(Path.Combine(_root, "reload-identity.dat"));
+        byte[] originalCertificate;
+        using (var created = identity.GetOrCreate()) originalCertificate = created.RawData;
+        var protectedIdentity = File.ReadAllBytes(identity.FilePath);
+        using var reloaded = new AgentCertificateStore(identity.FilePath).GetOrCreate();
+        Assert.True(reloaded.HasPrivateKey);
+        Assert.Equal(originalCertificate, reloaded.RawData);
+        Assert.Equal(protectedIdentity, File.ReadAllBytes(identity.FilePath));
+        using var privateKey = System.Security.Cryptography.X509Certificates.RSACertificateExtensions.GetRSAPrivateKey(reloaded);
+        using var publicKey = System.Security.Cryptography.X509Certificates.RSACertificateExtensions.GetRSAPublicKey(reloaded);
+        Assert.NotNull(privateKey);
+        Assert.NotNull(publicKey);
+        var challenge = RandomNumberGenerator.GetBytes(32);
+        var signature = privateKey.SignData(challenge, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        Assert.True(publicKey.VerifyData(challenge, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
+        challenge[0] ^= 1;
+        Assert.False(publicKey.VerifyData(challenge, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
+    }
+
+    [Fact]
     public async Task PinnedTlsAcceptsOnlyMatchingIdentityAndKey()
     {
         var identity = new AgentCertificateStore(Path.Combine(_root, "identity.dat"));
