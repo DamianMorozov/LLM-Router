@@ -1,0 +1,80 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="OpenLLMCluster.Desktop.App" RequestedThemeVariant="Default">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F3F5FA" />
+          <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="PanelBorderBrush" Color="#E0E5EF" />
+          <SolidColorBrush x:Key="TopologyMainBrush" Color="#EEF0FF" />
+          <SolidColorBrush x:Key="TopologyWorkerBrush" Color="#E5F5F1" />
+          <SolidColorBrush x:Key="TopologyTileBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="TopologyMainTileBrush" Color="#CBD3FF" />
+          <SolidColorBrush x:Key="TopologyWorkerTileBrush" Color="#BCE9DC" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="AppBackgroundBrush" Color="#111722" />
+          <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#1B2433" />
+          <SolidColorBrush x:Key="PanelBorderBrush" Color="#2D3A4F" />
+          <SolidColorBrush x:Key="TopologyMainBrush" Color="#202A47" />
+          <SolidColorBrush x:Key="TopologyWorkerBrush" Color="#16332F" />
+          <SolidColorBrush x:Key="TopologyTileBrush" Color="#202C3B" />
+          <SolidColorBrush x:Key="TopologyMainTileBrush" Color="#354371" />
+          <SolidColorBrush x:Key="TopologyWorkerTileBrush" Color="#22594E" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="Window"><Setter Property="FontFamily" Value="Inter" /><Setter Property="FontSize" Value="14" /></Style>
+    <Style Selector="TextBlock.title"><Setter Property="FontSize" Value="30" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBlock.heading"><Setter Property="FontSize" Value="18" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBlock.muted"><Setter Property="Opacity" Value="0.68" /><Setter Property="TextWrapping" Value="Wrap" /></Style>
+    <Style Selector="TextBlock.label"><Setter Property="FontWeight" Value="Medium" /><Setter Property="Margin" Value="0,0,0,6" /></Style>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="12" /><Setter Property="Padding" Value="22" />
+    </Style>
+    <Style Selector="Border.machine">
+      <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="10" /><Setter Property="Padding" Value="18" />
+    </Style>
+    <Style Selector="Button"><Setter Property="CornerRadius" Value="7" /><Setter Property="Padding" Value="16,10" /></Style>
+    <Style Selector="TextBox"><Setter Property="CornerRadius" Value="6" /></Style>
+    <Style Selector="ComboBox"><Setter Property="CornerRadius" Value="6" /><Setter Property="MinWidth" Value="150" /></Style>
+    <Style Selector="ComboBox.headerControl, Button.headerControl, ToggleSwitch.headerControl">
+      <Setter Property="Height" Value="40" /><Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ToggleSwitch.headerControl /template/ Grid > Grid:not(#SwitchAreaGrid)">
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.headerControl"><Setter Property="Padding" Value="16,8" /></Style>
+    <Style Selector="Border.card.compact"><Setter Property="Padding" Value="14" /></Style>
+    <Style Selector="Border.card.topology.coordinator"><Setter Property="Background" Value="{DynamicResource TopologyMainBrush}" /></Style>
+    <Style Selector="Border.card.topology.worker"><Setter Property="Background" Value="{DynamicResource TopologyWorkerBrush}" /></Style>
+    <Style Selector="Border.topologyTile">
+      <Setter Property="Background" Value="{DynamicResource TopologyTileBrush}" />
+      <Setter Property="CornerRadius" Value="8" /><Setter Property="Padding" Value="10" />
+    </Style>
+    <Style Selector="Border.topologyTile.active.coordinator"><Setter Property="Background" Value="{DynamicResource TopologyMainTileBrush}" /></Style>
+    <Style Selector="Border.topologyTile.active.worker"><Setter Property="Background" Value="{DynamicResource TopologyWorkerTileBrush}" /></Style>
+    <Style Selector="Border.machine.compact"><Setter Property="Padding" Value="12" /></Style>
+    <Style Selector="Button.compactAction">
+      <Setter Property="Height" Value="32" /><Setter Property="MinHeight" Value="32" />
+      <Setter Property="Padding" Value="10,4" /><Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.logAction">
+      <Setter Property="Width" Value="32" /><Setter Property="Height" Value="32" />
+      <Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="7" />
+    </Style>
+    <Style Selector="ToggleSwitch.inlineSwitch">
+      <Setter Property="OnContent" Value="" /><Setter Property="OffContent" Value="" />
+      <Setter Property="Width" Value="40" /><Setter Property="MinWidth" Value="40" />
+      <Setter Property="HorizontalAlignment" Value="Left" /><Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </Application.Styles>
+</Application>

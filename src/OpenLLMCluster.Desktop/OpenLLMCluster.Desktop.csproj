@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/open-llm-cluster.ico</ApplicationIcon>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <PublishDir>$(MSBuildThisFileDirectory)../../../Releases/Desktop/$(RuntimeIdentifier)/</PublishDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../OpenLLMCluster.Infrastructure/OpenLLMCluster.Infrastructure.csproj" />
+    <ProjectReference Include="../OpenLLMCluster.Agent/OpenLLMCluster.Agent.csproj" ReferenceOutputAssembly="false" />
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <EmbeddedResource Include="Localization/*.json" />
+    <AvaloniaResource Include="Assets/**" />
+  </ItemGroup>
+  <Target Name="CopyDevelopmentAgent" AfterTargets="Build" Condition="'$(BundleAgent)' != 'false'">
+    <ItemGroup>
+      <_DevelopmentAgent Include="$(MSBuildProjectDirectory)/../OpenLLMCluster.Agent/bin/$(Configuration)/$(TargetFramework)/**/*"
+                         Exclude="$(MSBuildProjectDirectory)/../OpenLLMCluster.Agent/bin/$(Configuration)/$(TargetFramework)/Agent/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_DevelopmentAgent)" DestinationFiles="@(_DevelopmentAgent->'$(OutDir)Agent/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PublishBundledAgent" AfterTargets="Publish" Condition="'$(BundleAgent)' != 'false'">
+    <PropertyGroup>
+      <_AgentRuntimeArgument Condition="'$(RuntimeIdentifier)' != ''">--runtime &quot;$(RuntimeIdentifier)&quot;</_AgentRuntimeArgument>
+      <_AgentPublishDirectory>$([System.IO.Path]::Combine('$(PublishDir)', 'Agent'))</_AgentPublishDirectory>
+    </PropertyGroup>
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)/../OpenLLMCluster.Agent/OpenLLMCluster.Agent.csproj&quot; --configuration &quot;$(Configuration)&quot; $(_AgentRuntimeArgument) --self-contained $(SelfContained) --output &quot;$(_AgentPublishDirectory)&quot;" />
+  </Target>
+</Project>

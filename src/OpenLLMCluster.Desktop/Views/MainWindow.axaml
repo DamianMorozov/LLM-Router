@@ -1,0 +1,611 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:OpenLLMCluster.Desktop.ViewModels"
+        xmlns:infra="using:OpenLLMCluster.Infrastructure"
+        xmlns:services="using:OpenLLMCluster.Desktop.Services"
+        x:Class="OpenLLMCluster.Desktop.Views.MainWindow" x:DataType="vm:MainWindowViewModel"
+        Title="{x:Static services:ApplicationInfo.WindowTitle}" Width="1240" Height="880" MinWidth="980" MinHeight="680"
+        Icon="/Assets/open-llm-cluster.ico"
+        Background="{DynamicResource AppBackgroundBrush}">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="28">
+    <StackPanel Spacing="8" Margin="0,0,0,18">
+      <Grid x:Name="HeaderSettings" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" MinHeight="40">
+          <Border Background="#5965F2" CornerRadius="9" Padding="8,5" VerticalAlignment="Center">
+            <TextBlock Text="{x:Static services:ApplicationInfo.ShortName}" FontSize="19" FontWeight="Bold" Foreground="White" />
+          </Border>
+          <TextBlock Grid.Column="1" x:Name="ApplicationNameText" Text="{x:Static services:ApplicationInfo.Name}"
+                     Classes="title" FontSize="20" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        <ComboBox Grid.Column="2" x:Name="LanguageSelector" Classes="headerControl" SelectedIndex="{Binding LanguageIndex, Mode=TwoWay}"
+                  Width="120" MinWidth="120" FontSize="11" AutomationProperties.Name="Language">
+          <ComboBoxItem Content="{Binding Text[LanguageSystem]}" />
+          <ComboBoxItem Content="Русский" /><ComboBoxItem Content="English" />
+        </ComboBox>
+        <ComboBox Grid.Column="3" x:Name="ThemeSelector" Classes="headerControl" ItemsSource="{Binding ThemeOptions}"
+                  SelectedIndex="{Binding ThemeIndex, Mode=TwoWay}" Width="120" MinWidth="120" FontSize="11" AutomationProperties.Name="Theme">
+          <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:LocalizedOption"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+        </ComboBox>
+        <ToggleSwitch Grid.Column="4" x:Name="RoleToggle" Classes="headerControl" IsChecked="{Binding IsCoordinatorMode, Mode=TwoWay}" FontSize="11"
+                      AutomationProperties.Name="{Binding Text[Role]}" OnContent="{Binding Text[CoordinatorRole]}" OffContent="{Binding Text[WorkerRole]}"
+                      IsEnabled="{Binding CanEditEngine}" />
+        <Grid Grid.Column="5" ColumnDefinitions="Auto,6,Auto" VerticalAlignment="Center" ToolTip.Tip="{Binding Text[RememberSettingsHelp]}">
+          <ToggleSwitch x:Name="RememberSettingsToggle" Classes="inlineSwitch" IsChecked="{Binding RememberSettings, Mode=TwoWay}"
+                        AutomationProperties.Name="{Binding Text[RememberSettings]}" />
+          <TextBlock Grid.Column="2" Text="{Binding Text[RememberSettingsShort]}" FontSize="11" VerticalAlignment="Center" />
+        </Grid>
+        <Grid Grid.Column="6" ColumnDefinitions="Auto,6,Auto" VerticalAlignment="Center" IsEnabled="{Binding RememberSettings}"
+              ToolTip.Tip="{Binding Text[RememberAgentKeysHelp]}">
+          <ToggleSwitch x:Name="RememberAgentKeysToggle" Classes="inlineSwitch" IsChecked="{Binding RememberAgentKeys, Mode=TwoWay}"
+                        AutomationProperties.Name="{Binding Text[RememberAgentKeys]}" />
+          <TextBlock Grid.Column="2" Text="{Binding Text[RememberKeysShort]}" FontSize="11" VerticalAlignment="Center" />
+        </Grid>
+      </Grid>
+      <TextBlock Text="{Binding Text[Subtitle]}" Classes="muted" />
+    </StackPanel>
+    <TabControl Grid.Row="1" x:Name="WorkspaceTabs">
+      <TabItem x:Name="OverviewTab" Header="{Binding Text[Overview]}">
+        <ScrollViewer>
+          <StackPanel Spacing="10" Margin="0,18,10,12">
+            <Border x:Name="OverviewModelCard" Classes="card compact">
+              <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock x:Name="ReadinessTitle" Text="{Binding Text[ModelLoadingTitle]}" Classes="heading" />
+                  <TextBlock Grid.Column="1" Text="{Binding ModelLoadElapsedText}" Classes="muted" VerticalAlignment="Center" IsVisible="{Binding IsCoordinatorRole}" />
+                </Grid>
+                <Grid ColumnDefinitions="Auto,8,*,12,Auto">
+                  <ToggleSwitch x:Name="EngineReadyIndicator" Classes="inlineSwitch" IsEnabled="False"
+                                IsChecked="{Binding IsEngineRunning, Mode=OneWay}" AutomationProperties.Name="{Binding EngineReadinessTitle}" />
+                  <StackPanel Grid.Column="2" Spacing="3">
+                    <TextBlock Text="{Binding EngineReadinessTitle}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding EngineReadinessDescription}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding EngineStatus}" FontSize="12" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <Button x:Name="OverviewStartEngineButton" Content="{Binding Text[StartEngineShort]}"
+                            Classes="compactAction" Command="{Binding StartEngineCommand}" />
+                    <Button x:Name="OverviewStopEngineButton" Content="{Binding Text[StopEngineShort]}"
+                            Classes="compactAction" Command="{Binding StopEngineCommand}" />
+                  </StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="Auto,8,*,12,Auto">
+                  <ToggleSwitch x:Name="AgentReadyIndicator" Classes="inlineSwitch" IsEnabled="False"
+                                IsChecked="{Binding IsLocalAgentRunning, Mode=OneWay}" AutomationProperties.Name="{Binding Text[AgentReady]}" />
+                  <StackPanel Grid.Column="2" Spacing="3">
+                    <TextBlock Text="{Binding Text[AgentReady]}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding AgentReadinessDescription}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LocalAgentStatus}" FontSize="12" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <Button x:Name="OverviewStartAgentButton" Content="{Binding Text[StartAgentShort]}"
+                            Classes="compactAction" Command="{Binding StartLocalAgentCommand}" />
+                    <Button x:Name="OverviewStopAgentButton" Content="{Binding Text[StopAgentShort]}"
+                            Classes="compactAction" Command="{Binding StopLocalAgentCommand}" />
+                  </StackPanel>
+                </Grid>
+                <StackPanel Spacing="8" IsVisible="{Binding IsCoordinatorRole}">
+                <TextBlock x:Name="OverviewModelName" Text="{Binding OverviewModelName}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ModelPath}" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="Model ID" Classes="muted" VerticalAlignment="Center" ToolTip.Tip="{Binding Text[ModelIdHelp]}" />
+                  <SelectableTextBlock x:Name="ModelIdValue" Text="{Binding ModelId}" VerticalAlignment="Center" ToolTip.Tip="{Binding Text[ModelIdHelp]}" />
+                  <Button x:Name="CopyModelIdButton" Classes="logAction" Content="⧉" Command="{Binding CopyModelIdCommand}"
+                          CommandParameter="{Binding $parent[Window].Clipboard}" ToolTip.Tip="{Binding Text[CopyModelId]}"
+                          AutomationProperties.Name="{Binding Text[CopyModelId]}" />
+                  <TextBlock x:Name="ModelEffortNotice" Text="{Binding ModelEffortNotice}" Classes="muted" VerticalAlignment="Center" />
+                </StackPanel>
+                <ProgressBar x:Name="ModelLoadProgressBar" Minimum="0" Maximum="100" Height="6"
+                             IsIndeterminate="{Binding IsModelLoading}" Value="{Binding ModelLoadProgressValue}" />
+                <TextBlock x:Name="ModelLoadStageText" Text="{Binding ModelLoadStageText}" Classes="muted"
+                           ToolTip.Tip="{Binding Text[ModelProgressHelp]}" />
+                <TextBlock x:Name="ModelActivityText" Text="{Binding ModelActivityText}" TextWrapping="Wrap" IsVisible="{Binding IsEngineRunning}"
+                           ToolTip.Tip="{Binding Text[ActivityHelp]}" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+            <Border Classes="card compact"><StackPanel Spacing="6">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="5"><TextBlock Text="{Binding Text[ClusterLoad]}" Classes="heading" ToolTip.Tip="{Binding Text[ClusterLoadHelp]}" />
+
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" Margin="12,0,0,0">
+                  <ToggleSwitch Classes="inlineSwitch" IsChecked="{Binding AutoMonitor, Mode=TwoWay}"
+                                AutomationProperties.Name="{Binding Text[AutoMonitor]}" />
+                  <TextBlock Text="{Binding Text[AutoMonitor]}" VerticalAlignment="Center" />
+                  <ComboBox x:Name="MonitorIntervalSelector" ItemsSource="{Binding MonitorIntervals}"
+                            SelectedItem="{Binding MonitorIntervalSeconds, Mode=TwoWay}" IsEnabled="{Binding AutoMonitor}"
+                            MinWidth="64" Width="72" Height="32" MinHeight="32" VerticalAlignment="Center"
+                            AutomationProperties.Name="{Binding Text[MonitorInterval]}" ToolTip.Tip="{Binding Text[MonitorInterval]}" />
+                  <TextBlock Text="{Binding Text[SecondsShort]}" VerticalAlignment="Center" />
+                  <Button x:Name="RefreshLoadsButton" Classes="compactAction" Content="{Binding Text[RefreshLoads]}"
+                          Command="{Binding RefreshLoadsCommand}" IsEnabled="{Binding !IsMonitoringBusy}" />
+                </StackPanel>
+              </Grid>
+              <ItemsControl x:Name="ComputerCards" ItemsSource="{Binding Computers}">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:ComputerLoadViewModel">
+                  <Border Classes="machine compact" Margin="0,0,8,8"><StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Spacing="3">
+                        <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Address}" Classes="muted" />
+                        <TextBlock Text="{Binding HostName}" Classes="muted" FontSize="12" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="4" HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding Status}" FontWeight="Medium" MaxWidth="180" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding UpdatedLabel}" Classes="muted" FontSize="12" />
+                      </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ErrorDetail}" Classes="muted" />
+                    <Grid ColumnDefinitions="*,12,*" Opacity="0.85">
+                      <StackPanel Spacing="6">
+                      <Grid ColumnDefinitions="*,Auto"><TextBlock Text="CPU" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1" Text="{Binding CpuLabel}" FontWeight="SemiBold" /></Grid>
+                      <ProgressBar Value="{Binding CpuUsage}" Minimum="0" Maximum="100" Height="8"
+                                   IsVisible="{Binding HasCpu}" Foreground="#6C83F7" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="2" Spacing="6">
+                        <Grid ColumnDefinitions="Auto,*"><TextBlock Text="RAM" FontWeight="SemiBold" />
+                          <TextBlock Grid.Column="1" Text="{Binding MemoryLabel}" HorizontalAlignment="Right" FontSize="11"
+                                     VerticalAlignment="Center" ToolTip.Tip="{Binding Text[MemoryHelp]}" /></Grid>
+                        <ProgressBar Value="{Binding MemoryUsage}" Minimum="0" Maximum="100" Height="8"
+                                     IsVisible="{Binding HasMemory}" Foreground="#52B9C7" />
+                      </StackPanel>
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Gpus}" IsVisible="{Binding IsOnline}">
+                      <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:GpuLoadViewModel">
+                        <Border Background="#0C7887A3" CornerRadius="8" Padding="10" Margin="0,0,0,8"><StackPanel Spacing="6">
+                          <Grid ColumnDefinitions="*,Auto"><TextBlock Text="{Binding Name}" FontWeight="Medium" TextWrapping="Wrap" Margin="0,0,8,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding LoadLabel}" FontWeight="SemiBold" /></Grid>
+                          <ProgressBar Value="{Binding Load}" Minimum="0" Maximum="100" Height="8"
+                                       IsVisible="{Binding HasLoad}" Foreground="#2DC7AF" />
+                          <TextBlock Text="{Binding MemoryLabel}" Classes="muted" FontSize="12" />
+                          <ProgressBar Value="{Binding MemoryPercent}" IsVisible="{Binding HasMemory}" Minimum="0" Maximum="100" Height="5" Foreground="#A88CF0" />
+                        </StackPanel></Border>
+                      </DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding Text[NoGpuTelemetry]}" IsVisible="{Binding HasNoGpus}" Classes="muted" />
+                  </StackPanel></Border>
+                </DataTemplate></ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel></Border>
+            <Border x:Name="TopologyCard" Classes="card compact topology"
+                    Classes.coordinator="{Binding IsCoordinatorRole}" Classes.worker="{Binding IsWorkerRole}">
+              <StackPanel Spacing="6">
+                <TextBlock Text="{Binding Text[TopologyTitle]}" Classes="heading" ToolTip.Tip="{Binding Text[TopologyDescription]}" />
+
+                <Grid ColumnDefinitions="*,Auto,*,Auto,*" Margin="0,2">
+                  <Border Classes="topologyTile"><StackPanel Spacing="6">
+                    <TextBlock Text="OpenAI-compatible client" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Text[ClientDescription]}" Classes="muted" />
+                  </StackPanel></Border>
+                  <TextBlock Grid.Column="1" Text="→" FontSize="24" Margin="14,0" VerticalAlignment="Center" />
+                  <Border x:Name="CoordinatorTopologyTile" Grid.Column="2" Classes="topologyTile coordinator" Classes.active="{Binding IsCoordinatorRole}"><StackPanel Spacing="6">
+                    <TextBlock Text="llama-server" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Text[ThisComputer]}" IsVisible="{Binding IsCoordinatorRole}" FontSize="12" />
+                    <TextBlock Text="{Binding Text[CoordinatorDescription]}" Classes="muted" />
+                  </StackPanel></Border>
+                  <TextBlock Grid.Column="3" Text="→" FontSize="24" Margin="14,0" VerticalAlignment="Center" />
+                  <Border x:Name="WorkerTopologyTile" Grid.Column="4" Classes="topologyTile worker" Classes.active="{Binding IsWorkerRole}"><StackPanel Spacing="6">
+                    <TextBlock Text="ggml-rpc-server" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Text[ThisComputer]}" IsVisible="{Binding IsWorkerRole}" FontSize="12" />
+                    <TextBlock Text="{Binding Text[WorkerDescription]}" Classes="muted" />
+                  </StackPanel></Border>
+                </Grid>
+              </StackPanel>
+            </Border>
+            <Border Classes="card compact"><StackPanel Spacing="10">
+              <Expander Header="{Binding Text[FirstStage]}" HorizontalAlignment="Stretch">
+                <StackPanel Spacing="6">
+                  <TextBlock Text="{Binding Text[FirstStageDescription]}" Classes="muted" />
+                  <TextBlock Text="{Binding Text[AgentNotRpc]}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Expander>
+            </StackPanel></Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem x:Name="NodesTab" Header="{Binding Text[Nodes]}" IsEnabled="{Binding IsCoordinatorRole}">
+        <ScrollViewer>
+          <StackPanel Margin="0,18,10,12" Spacing="16">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="6"><TextBlock Text="{Binding Text[NodesTitle]}" Classes="heading" />
+                <TextBlock Text="{Binding Text[NodesHelp]}" Classes="muted" /></StackPanel>
+              <Button Grid.Column="1" x:Name="AddNodeButton" Content="{Binding Text[AddNode]}" Command="{Binding AddNodeCommand}" />
+            </Grid>
+            <ItemsControl ItemsSource="{Binding Nodes}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:NodeViewModel">
+                  <Border Classes="card" Margin="0,0,0,14">
+                    <StackPanel Spacing="12">
+                      <Grid ColumnDefinitions="*,Auto" IsEnabled="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CanEditCoordinatorSettings}">
+                        <CheckBox Content="{Binding Text[UseNode]}" IsChecked="{Binding Enabled}" />
+                        <Button Grid.Column="1" Content="{Binding Text[Remove]}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RemoveNodeCommand}" CommandParameter="{Binding}" />
+                      </Grid>
+                      <Grid ColumnDefinitions="*,14,*,14,130,14,130" IsEnabled="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CanEditCoordinatorSettings}">
+                        <StackPanel><TextBlock Text="{Binding Text[NodeName]}" Classes="label" /><TextBox Text="{Binding Name}" /></StackPanel>
+                        <StackPanel Grid.Column="2"><TextBlock Text="{Binding Text[Host]}" Classes="label" /><TextBox Text="{Binding Host}" PlaceholderText="{Binding Text[HostPlaceholder]}" /></StackPanel>
+                        <StackPanel Grid.Column="4"><TextBlock Text="{Binding Text[AgentPort]}" Classes="label" /><NumericUpDown Value="{Binding AgentPort}" Minimum="1" Maximum="65535" FormatString="0" /></StackPanel>
+                        <StackPanel Grid.Column="6"><TextBlock Text="{Binding Text[RpcPort]}" Classes="label" /><NumericUpDown Value="{Binding RpcPort}" Minimum="1" Maximum="65535" FormatString="0" /></StackPanel>
+                      </Grid>
+                      <Grid ColumnDefinitions="*,14,Auto">
+                        <TextBox IsEnabled="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CanEditCoordinatorSettings}" Text="{Binding AccessToken}" PasswordChar="●" PlaceholderText="{Binding Text[AgentToken]}" />
+                        <Button Grid.Column="2" Content="{Binding Text[CheckAgent]}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ProbeNodeCommand}" CommandParameter="{Binding}" />
+                      </Grid>
+                      <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
+                      <StackPanel Spacing="8" IsEnabled="{Binding !IsRemoteBusy}">
+                        <Grid ColumnDefinitions="Auto,8,*" IsEnabled="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CanEditCoordinatorSettings}">
+                          <ToggleSwitch Classes="inlineSwitch" IsChecked="{Binding UseTls, Mode=TwoWay}"
+                                        AutomationProperties.Name="{Binding Text[AgentTls]}" />
+                          <TextBlock Grid.Column="2" Text="{Binding Text[AgentTls]}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        </Grid>
+                        <TextBox IsEnabled="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CanEditCoordinatorSettings}" Text="{Binding CertificateFingerprint, Mode=TwoWay}" PlaceholderText="SHA-256" />
+                        <TextBlock Text="{Binding Text[PairingHelp]}" Classes="muted" />
+                        <WrapPanel>
+                          <Button Content="{Binding Text[PairNode]}" Margin="0,0,10,8"
+                                  Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).PairNodeCommand}" CommandParameter="{Binding}" />
+                          <Button Content="{Binding Text[StartRemoteRpc]}" Margin="0,0,10,8"
+                                  Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).StartRemoteRpcCommand}" CommandParameter="{Binding}" />
+                          <Button Content="{Binding Text[StopRemoteRpc]}" Margin="0,0,10,8"
+                                  Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).StopRemoteRpcCommand}" CommandParameter="{Binding}" />
+                          <Button Content="{Binding Text[ReadRemoteRpc]}" Margin="0,0,0,8"
+                                  Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ReadRemoteRpcCommand}" CommandParameter="{Binding}" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding Text[RemoteRpcBind]}" Classes="label" />
+                        <TextBox IsEnabled="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CanEditCoordinatorSettings}" Text="{Binding RemoteRpcAddress, Mode=TwoWay}" />
+                      </StackPanel>
+                      <TextBox Text="{Binding RemoteLog, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" MaxHeight="150" />
+                      <WrapPanel>
+                        <Button Content="{Binding Text[CheckAgentTcp]}" Margin="0,0,10,8"
+                                Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CheckNodeAgentPortCommand}" CommandParameter="{Binding}" />
+                        <Button Content="{Binding Text[CheckRpcTcp]}" Margin="0,0,0,8"
+                                Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CheckNodeRpcPortCommand}" CommandParameter="{Binding}" />
+                      </WrapPanel>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="{Binding Text[TokenNotSaved]}" Classes="muted" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem x:Name="RuntimeTab" Header="{Binding Text[Runtime]}">
+        <ScrollViewer x:Name="RuntimeScroller">
+          <StackPanel Margin="0,18,10,12" Spacing="18">
+            <TextBlock Text="{Binding RoleSettingsHelp}" Classes="muted" TextWrapping="Wrap" />
+            <Border x:Name="WorkloadCard" Classes="card compact" IsEnabled="{Binding CanEditCoordinatorSettings}">
+              <StackPanel Spacing="8">
+                <TextBlock Text="{Binding Text[WorkloadTitle]}" Classes="heading" />
+                <Grid ColumnDefinitions="*,12,Auto" IsEnabled="{Binding CanEditEngine}">
+                  <ComboBox x:Name="WorkloadSelector" ItemsSource="{Binding WorkloadOptions}"
+                            SelectedIndex="{Binding WorkloadIndex, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                    <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:LocalizedOption"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <Button Grid.Column="2" x:Name="ApplyWorkloadButton" Content="{Binding Text[ApplyWorkload]}" Command="{Binding ApplyWorkloadProfileCommand}" />
+                </Grid>
+                <TextBlock Text="{Binding WorkloadSummary}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Text[WorkloadLimits]}" Classes="muted" />
+              </StackPanel>
+            </Border>
+            <Border Classes="card"><StackPanel Spacing="12">
+              <TextBlock Text="{Binding Text[LlamaInstallTitle]}" Classes="heading" />
+              <TextBlock Text="{Binding Text[LlamaInstallHelp]}" Classes="muted" />
+              <Grid ColumnDefinitions="*,14,*" IsEnabled="{Binding CanEditEngine}">
+                <StackPanel><TextBlock Text="{Binding Text[LlamaReleaseTag]}" Classes="label" />
+                  <TextBox Text="{Binding LlamaReleaseTag, Mode=TwoWay}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="{Binding Text[LlamaBackend]}" Classes="label" />
+                  <ComboBox ItemsSource="{Binding LlamaBackends}" SelectedIndex="{Binding LlamaBackendIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                </StackPanel>
+              </Grid>
+              <Button x:Name="InstallLlamaButton" Content="{Binding Text[InstallLlama]}" Command="{Binding InstallLlamaCommand}" />
+            </StackPanel></Border>
+            <Border Classes="card" IsEnabled="{Binding CanEditEngine}"><StackPanel Spacing="14">
+              <TextBlock Text="{Binding Text[RuntimeTitle]}" Classes="heading" />
+              <TextBlock Text="{Binding Text[RuntimeHelp]}" Classes="muted" />
+              <StackPanel><TextBlock Text="{Binding Text[RuntimeDirectory]}" Classes="label" />
+                <Grid ColumnDefinitions="*,12,Auto,8,Auto"><TextBox Text="{Binding RuntimeDirectory}" />
+                  <Button Grid.Column="2" Content="{Binding Text[Browse]}" Click="BrowseRuntime_Click" />
+                  <Button Grid.Column="4" x:Name="FindRuntimeButton" Content="{Binding Text[AutoFind]}"
+                          Command="{Binding FindRuntimeCommand}" IsEnabled="{Binding !IsDiscovering}" /></Grid>
+                <ComboBox x:Name="RuntimeLocationsSelector" ItemsSource="{Binding RuntimeLocations}"
+                          SelectedItem="{Binding SelectedRuntimeLocation, Mode=TwoWay}" HorizontalAlignment="Stretch"
+                          IsVisible="{Binding HasRuntimeLocations}" Margin="0,8,0,0">
+                  <ComboBox.ItemTemplate><DataTemplate x:DataType="infra:RuntimeLocation">
+                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" />
+                  </DataTemplate></ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="{Binding RuntimeDiscoveryStatus}" Classes="muted" Margin="0,6,0,0" />
+                <TextBlock Text="{Binding Text[DiscoveryHelp]}" Classes="muted" />
+              </StackPanel>
+              <StackPanel IsEnabled="{Binding CanEditCoordinatorSettings}"><TextBlock Text="{Binding Text[ModelDirectory]}" Classes="label" />
+                <Grid ColumnDefinitions="*,12,Auto,8,Auto"><TextBox Text="{Binding ModelDirectory, Mode=TwoWay}" />
+                  <Button Grid.Column="2" Content="{Binding Text[Browse]}" Click="BrowseModelDirectory_Click" />
+                  <Button Grid.Column="4" x:Name="FindModelsButton" Content="{Binding Text[AutoFind]}"
+                          Command="{Binding FindModelsCommand}" IsEnabled="{Binding !IsDiscovering}" /></Grid>
+                <ComboBox ItemsSource="{Binding ModelDirectories}" SelectedItem="{Binding SelectedModelDirectory, Mode=TwoWay}"
+                          HorizontalAlignment="Stretch" IsVisible="{Binding HasModelDirectories}" Margin="0,8,0,0" />
+                <TextBlock Text="{Binding ModelDiscoveryStatus}" Classes="muted" Margin="0,6,0,0" />
+              </StackPanel>
+              <StackPanel IsEnabled="{Binding CanEditCoordinatorSettings}"><TextBlock Text="{Binding Text[ModelFile]}" Classes="label" />
+                <Grid ColumnDefinitions="*,12,Auto"><TextBox Text="{Binding ModelPath}" />
+                  <Button Grid.Column="2" Content="{Binding Text[Browse]}" Click="BrowseModel_Click" /></Grid>
+              </StackPanel>
+              <Grid ColumnDefinitions="*,14,*,14,*,14,*">
+                <StackPanel><TextBlock Text="{Binding Text[BindAddress]}" Classes="label" /><TextBox x:Name="BindAddressEditor" Text="{Binding BindAddress}" /></StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="{Binding Text[ApiPort]}" Classes="label" /><NumericUpDown x:Name="ApiPortEditor" IsEnabled="{Binding CanEditCoordinatorSettings}" Value="{Binding ApiPort}" Minimum="1" Maximum="65535" FormatString="0" /></StackPanel>
+                <StackPanel Grid.Column="4"><TextBlock Text="{Binding Text[RpcPort]}" Classes="label" /><NumericUpDown x:Name="RpcPortEditor" IsEnabled="{Binding CanEditWorkerSettings}" Value="{Binding RpcPort}" Minimum="1" Maximum="65535" FormatString="0" /></StackPanel>
+                <StackPanel Grid.Column="6"><TextBlock Text="{Binding Text[CpuThreads]}" Classes="label" /><NumericUpDown x:Name="CpuThreadsEditor" IsEnabled="{Binding CanEditCoordinatorSettings}" Value="{Binding CpuThreads}" Minimum="1" Maximum="1024" FormatString="0" /></StackPanel>
+              </Grid>
+              <StackPanel><TextBlock Text="{Binding Text[ContextLength]}" Classes="label" />
+                <NumericUpDown x:Name="ContextLengthEditor" IsEnabled="{Binding CanEditCoordinatorSettings}" Value="{Binding ContextLength}" Minimum="512" Maximum="1048576" Increment="1024" FormatString="0" Width="220" HorizontalAlignment="Left" />
+              </StackPanel>
+              <Grid ColumnDefinitions="*,14,*">
+                <StackPanel ToolTip.Tip="{Binding Text[GpuLayersHelp]}"><TextBlock Text="{Binding Text[GpuLayers]}" Classes="label" />
+                  <NumericUpDown x:Name="GpuLayersEditor" IsEnabled="{Binding CanEditCoordinatorSettings}" Value="{Binding GpuLayers, Mode=TwoWay}" Minimum="-1" Maximum="999" FormatString="0" />
+                </StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="{Binding Text[EngineStartupTimeout]}" Classes="label" />
+                  <NumericUpDown Value="{Binding EngineStartupTimeoutSeconds, Mode=TwoWay}" Minimum="1" Maximum="7200" FormatString="0" />
+                </StackPanel>
+              </Grid>
+              <Button Content="{Binding Text[Validate]}" Command="{Binding ValidateCommand}" Classes="accent" IsEnabled="{Binding !IsBusy}" />
+            </StackPanel></Border>
+            <Border x:Name="ModelSettingsCard" Classes="card" IsEnabled="{Binding CanEditCoordinatorSettings}"><StackPanel Spacing="14">
+              <TextBlock Text="{Binding Text[GenerationSettings]}" Classes="heading" />
+              <TextBlock Text="{Binding Text[GenerationSettingsHelp]}" Classes="muted" />
+              <Grid ColumnDefinitions="*,14,*,14,*">
+                <StackPanel><TextBlock Text="{Binding Text[MaxOutputTokens]}" Classes="label" />
+                  <NumericUpDown x:Name="MaxOutputTokensEditor" Value="{Binding MaxOutputTokens, Mode=TwoWay}" Minimum="1" Maximum="1048576" FormatString="0" /></StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="Temperature" Classes="label" />
+                  <NumericUpDown Value="{Binding Temperature, Mode=TwoWay}" Minimum="0" Maximum="2" Increment="0.05" FormatString="0.00" /></StackPanel>
+                <StackPanel Grid.Column="4"><TextBlock Text="Top K" Classes="label" />
+                  <NumericUpDown Value="{Binding TopK, Mode=TwoWay}" Minimum="0" Maximum="1000" FormatString="0" /></StackPanel>
+              </Grid>
+              <Grid ColumnDefinitions="*,14,*,14,*">
+                <StackPanel><TextBlock Text="Top P" Classes="label" />
+                  <NumericUpDown Value="{Binding TopP, Mode=TwoWay}" Minimum="0.01" Maximum="1" Increment="0.05" FormatString="0.00" /></StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="Min P" Classes="label" />
+                  <NumericUpDown Value="{Binding MinP, Mode=TwoWay}" Minimum="0" Maximum="1" Increment="0.01" FormatString="0.00" /></StackPanel>
+                <StackPanel Grid.Column="4"><TextBlock Text="Repeat Penalty" Classes="label" />
+                  <NumericUpDown Value="{Binding RepeatPenalty, Mode=TwoWay}" Minimum="0.01" Maximum="3" Increment="0.05" FormatString="0.00" /></StackPanel>
+              </Grid>
+              <TextBlock Text="Reasoning" Classes="heading" Margin="0,8,0,0" />
+              <Grid ColumnDefinitions="*,14,*">
+                <StackPanel><TextBlock Text="Reasoning" Classes="label" />
+                  <ComboBox ItemsSource="{Binding ReasoningChoices}" SelectedItem="{Binding ReasoningMode, Mode=TwoWay}" HorizontalAlignment="Stretch" /></StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="{Binding Text[ReasoningBudget]}" Classes="label" />
+                  <NumericUpDown Value="{Binding ReasoningBudget, Mode=TwoWay}" Minimum="-1" Maximum="1048576" FormatString="0" /></StackPanel>
+              </Grid>
+              <TextBlock Text="{Binding Text[MemorySettings]}" Classes="heading" Margin="0,8,0,0" />
+              <Grid ColumnDefinitions="*,14,*,14,*">
+                <StackPanel><TextBlock Text="{Binding Text[ParallelRequests]}" Classes="label" />
+                  <NumericUpDown Value="{Binding ParallelRequests, Mode=TwoWay}" Minimum="1" Maximum="16" FormatString="0" /></StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="Batch" Classes="label" />
+                  <NumericUpDown Value="{Binding BatchSize, Mode=TwoWay}" Minimum="1" Maximum="8192" FormatString="0" /></StackPanel>
+                <StackPanel Grid.Column="4"><TextBlock Text="Microbatch" Classes="label" />
+                  <NumericUpDown Value="{Binding MicroBatchSize, Mode=TwoWay}" Minimum="1" Maximum="8192" FormatString="0" /></StackPanel>
+              </Grid>
+              <Grid ColumnDefinitions="*,14,*,14,*">
+                <StackPanel><TextBlock Text="KV cache · K" Classes="label" />
+                  <ComboBox ItemsSource="{Binding CacheChoices}" SelectedItem="{Binding CacheTypeK, Mode=TwoWay}" HorizontalAlignment="Stretch" /></StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="KV cache · V" Classes="label" />
+                  <ComboBox ItemsSource="{Binding CacheChoices}" SelectedItem="{Binding CacheTypeV, Mode=TwoWay}" HorizontalAlignment="Stretch" /></StackPanel>
+                <Grid Grid.Column="4" ColumnDefinitions="Auto,8,*" VerticalAlignment="Center">
+                  <ToggleSwitch Classes="inlineSwitch" IsChecked="{Binding FlashAttention, Mode=TwoWay}" AutomationProperties.Name="Flash Attention" />
+                  <TextBlock Grid.Column="2" Text="Flash Attention" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </Grid>
+              </Grid>
+              <TextBlock Text="{Binding Text[MemorySettingsHelp]}" Classes="muted" />
+              <TextBlock Text="{Binding Text[GpuDistribution]}" Classes="heading" />
+              <TextBlock Text="{Binding Text[GpuDistributionHelp]}" Classes="muted" />
+              <WrapPanel>
+                <Button x:Name="CheckClusterButton" Content="{Binding Text[CheckCluster]}" Command="{Binding CheckClusterCommand}" Margin="0,0,10,8" />
+                <Button x:Name="SuggestGpuSplitButton" Content="{Binding Text[SuggestGpuSplit]}" Command="{Binding SuggestGpuSplitCommand}" Margin="0,0,0,8" />
+              </WrapPanel>
+              <TextBlock Text="{Binding ClusterDevicesReport}" TextWrapping="Wrap" />
+              <Grid ColumnDefinitions="*,14,*">
+                <StackPanel><TextBlock Text="{Binding Text[SelectedDevices]}" Classes="label" />
+                  <TextBox x:Name="DevicesEditor" Text="{Binding Devices, Mode=TwoWay}" /></StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="Tensor split" Classes="label" />
+                  <TextBox x:Name="TensorSplitEditor" Text="{Binding TensorSplit, Mode=TwoWay}" /></StackPanel>
+              </Grid>
+              <TextBlock Text="{Binding Text[DeviceReserve]}" Classes="label" />
+              <NumericUpDown Value="{Binding DeviceReserveMiB, Mode=TwoWay}" Minimum="0" Maximum="1048576" FormatString="0" />
+            </StackPanel></Border>
+            <Border x:Name="EffortReferenceCard" Classes="card compact" IsVisible="{Binding IsCoordinatorRole}"><StackPanel Spacing="8">
+              <Grid ColumnDefinitions="Auto,12,*,Auto">
+                <TextBlock Text="Effort" Classes="heading" VerticalAlignment="Center" />
+                <SelectableTextBlock x:Name="EffortValues" Grid.Column="2" Text="{Binding EffortValuesText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Button x:Name="CopyEffortButton" Grid.Column="3" Classes="logAction" Content="⧉" Command="{Binding CopyEffortCommand}"
+                        IsEnabled="{Binding HasEffortLevels}" CommandParameter="{Binding $parent[Window].Clipboard}" ToolTip.Tip="{Binding Text[CopyEffort]}"
+                        AutomationProperties.Name="{Binding Text[CopyEffort]}" />
+              </Grid>
+              <TextBlock x:Name="EffortSupportText" Text="{Binding EffortSupport}" Classes="muted" />
+              <TextBlock Text="{Binding Text[ReasoningHelp]}" Classes="muted" />
+            </StackPanel></Border>
+            <Border x:Name="EngineControlCard" Classes="card"><StackPanel Spacing="12">
+              <TextBlock Text="{Binding Text[EngineControl]}" Classes="heading" />
+              <TextBlock Text="{Binding Text[EngineControlHelp]}" Classes="muted" />
+              <StackPanel Spacing="8" IsVisible="{Binding IsCoordinatorRole}">
+                <TextBlock Text="{Binding Text[ServerApiKey]}" Classes="label" />
+                <Grid ColumnDefinitions="*,10,Auto">
+                  <TextBox Text="{Binding ServerApiKey, Mode=TwoWay}" PasswordChar="●" IsEnabled="{Binding CanEditCoordinatorSettings}" />
+                  <Button Grid.Column="2" Content="{Binding Text[CopyServerKey]}" Command="{Binding CopyServerKeyCommand}"
+                          CommandParameter="{Binding $parent[Window].Clipboard}" />
+                </Grid>
+              </StackPanel>
+              <WrapPanel>
+                <Button x:Name="StartEngineButton" Content="{Binding Text[StartEngine]}" Command="{Binding StartEngineCommand}" Classes="accent" Margin="0,0,10,8" />
+                <Button x:Name="StopEngineButton" Content="{Binding Text[StopEngine]}" Command="{Binding StopEngineCommand}" Margin="0,0,10,8" />
+                <Button x:Name="CancelEngineButton" Content="{Binding Text[CancelEngineOperation]}" Command="{Binding CancelEngineOperationCommand}"
+                        IsEnabled="{Binding IsEngineBusy}" Margin="0,0,10,8" />
+                <Button x:Name="RpcFirewallButton" Content="{Binding Text[EnsureRpcFirewall]}" Command="{Binding EnsureRpcFirewallCommand}"
+                        IsVisible="{Binding IsWorkerRole}" Margin="0,0,0,8" />
+              </WrapPanel>
+              <TextBlock x:Name="EngineStatusText" Text="{Binding EngineStatus}" TextWrapping="Wrap" />
+              <StackPanel Spacing="8" IsVisible="{Binding IsCoordinatorRole}">
+                <TextBox Text="{Binding EngineTestPrompt, Mode=TwoWay}" />
+                <Button x:Name="TestEngineButton" Content="{Binding Text[TestEngine]}" Command="{Binding TestEngineCommand}" />
+                <Button x:Name="BenchmarkEngineButton" Content="{Binding Text[BenchmarkEngine]}" Command="{Binding BenchmarkEngineCommand}" />
+                <TextBlock Text="{Binding Text[BenchmarkHelp]}" Classes="muted" />
+                <TextBox Text="{Binding EngineTestOutput, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" MaxHeight="280" />
+              </StackPanel>
+              <Grid x:Name="EngineLogToolbar" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Text[EngineLog]}" Classes="heading" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                  <Button x:Name="CopyEngineLogButton" Classes="logAction" Command="{Binding CopyEngineLogCommand}"
+                          CommandParameter="{Binding $parent[Window].Clipboard}"
+                          ToolTip.Tip="{Binding Text[CopyEngineLog]}" AutomationProperties.Name="{Binding Text[CopyEngineLog]}">
+                    <PathIcon Width="16" Height="16" Data="M6,2 L18,2 L18,14 L16,14 L16,4 L6,4 Z M2,6 L14,6 L14,20 L2,20 Z M4,8 L4,18 L12,18 L12,8 Z" />
+                  </Button>
+                  <Button x:Name="ClearEngineLogButton" Classes="logAction" Command="{Binding ClearEngineLogCommand}"
+                          ToolTip.Tip="{Binding Text[ClearEngineLog]}" AutomationProperties.Name="{Binding Text[ClearEngineLog]}">
+                    <PathIcon Width="16" Height="16" Data="M3,5 L7,5 L7,2 L13,2 L13,5 L17,5 L17,7 L3,7 Z M9,4 L9,5 L11,5 L11,4 Z M5,8 L15,8 L14,20 L6,20 Z M8,10 L9,18 L10,18 L9,10 Z M11,10 L11,18 L12,18 L13,10 Z" />
+                  </Button>
+                </StackPanel>
+              </Grid>
+              <ListBox ItemsSource="{Binding EngineEvents}" MinHeight="140" MaxHeight="300">
+                <ListBox.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap" FontFamily="monospace" />
+                </DataTemplate></ListBox.ItemTemplate>
+              </ListBox>
+            </StackPanel></Border>
+            <Border Classes="card"><StackPanel Spacing="12">
+              <TextBlock Text="{Binding Text[Checks]}" Classes="heading" />
+              <ItemsControl ItemsSource="{Binding Checks}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String">
+                <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,3" />
+              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+              <TextBlock Text="{Binding Text[CommandPreview]}" Classes="heading" Margin="0,8,0,0" />
+              <TextBox Text="{Binding CommandPreview, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" MinHeight="150" FontFamily="monospace" />
+              <TextBlock Text="{Binding Text[PreviewHelp]}" Classes="muted" />
+            </StackPanel></Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem x:Name="LocalAgentTab" Header="{Binding Text[LocalAgentTab]}">
+        <ScrollViewer x:Name="LocalAgentScroller">
+          <StackPanel Spacing="10" Margin="0,14,10,12">
+            <Border Classes="card compact"><StackPanel Spacing="8">
+              <TextBlock Text="{Binding Text[LocalModelTitle]}" Classes="heading" />
+              <TextBlock Text="{Binding Text[LocalModelHelp]}" TextWrapping="Wrap" Classes="muted" />
+              <Grid ColumnDefinitions="*,8,Auto" IsEnabled="{Binding CanConfigureLocalModel}">
+                <TextBox x:Name="LocalModelPathEditor" Text="{Binding LocalModelPath, Mode=TwoWay}" PlaceholderText="{Binding Text[LocalModelPathHint]}" />
+                <Button x:Name="BrowseLocalModelButton" Grid.Column="2" Content="{Binding Text[Browse]}" Click="BrowseLocalModel_Click" Classes="compactAction" />
+              </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button x:Name="PrepareLocalModelButton" Content="{Binding Text[PrepareLocalModel]}" Command="{Binding PrepareLocalModelCommand}"
+                        Classes="compactAction" />
+                <Button Content="{Binding Text[CancelLocalModel]}" Command="{Binding PrepareLocalModelCancelCommand}"
+                        IsVisible="{Binding IsLocalModelBusy}" Classes="compactAction" />
+              </StackPanel>
+              <SelectableTextBlock Text="{Binding LocalModelStatus}" TextWrapping="Wrap" FontSize="12" />
+            </StackPanel></Border>
+            <Border x:Name="AgentNetworkCard" Classes="card compact"><StackPanel Spacing="10">
+              <Grid ColumnDefinitions="Auto,16,*">
+                <TextBlock Text="{Binding Text[LocalAgentTitle]}" Classes="heading" ToolTip.Tip="{Binding Text[LocalAgentHelp]}" />
+                <SelectableTextBlock Grid.Column="2" Text="{Binding LocalAddresses}" TextWrapping="Wrap" Classes="muted"
+                                     VerticalAlignment="Center" ToolTip.Tip="{Binding Text[LocalAddresses]}" />
+              </Grid>
+              <StackPanel Spacing="10" IsEnabled="{Binding CanEditLocalAgent}">
+                <Grid ColumnDefinitions="*,20,*,20,*">
+                  <Grid ColumnDefinitions="Auto,8,*" ToolTip.Tip="{Binding Text[LocalAgentLanHelp]}">
+                  <ToggleSwitch x:Name="LocalAgentLanSwitch" Classes="inlineSwitch"
+                                AutomationProperties.Name="{Binding Text[AllowAgentLan]}" IsChecked="{Binding AllowAgentLan, Mode=TwoWay}" />
+                  <TextBlock Grid.Column="2" Text="{Binding Text[AllowAgentLan]}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </Grid>
+                  <Grid ColumnDefinitions="Auto,8,*" Grid.Column="2">
+                  <ToggleSwitch x:Name="AgentTlsSwitch" Classes="inlineSwitch"
+                                AutomationProperties.Name="{Binding Text[AgentTls]}" IsChecked="{Binding UseAgentTls, Mode=TwoWay}" />
+                  <TextBlock Grid.Column="2" Text="{Binding Text[AgentTls]}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </Grid>
+                  <Grid ColumnDefinitions="Auto,8,*" Grid.Column="4">
+                  <ToggleSwitch x:Name="RemoteControlSwitch" Classes="inlineSwitch"
+                                AutomationProperties.Name="{Binding Text[AllowRemoteControl]}" IsChecked="{Binding AllowRemoteControl, Mode=TwoWay}" />
+                  <TextBlock Grid.Column="2" Text="{Binding Text[AllowRemoteControl]}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </Grid>
+                </Grid>
+                <Grid ColumnDefinitions="*,14,150">
+                  <StackPanel><TextBlock Text="{Binding Text[AgentListenAddress]}" Classes="label" />
+                    <TextBox x:Name="LocalAgentAddress" Text="{Binding LocalAgentListenAddress, Mode=TwoWay}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2"><TextBlock Text="{Binding Text[AgentPort]}" Classes="label" />
+                    <NumericUpDown Value="{Binding LocalAgentPort, Mode=TwoWay}" Minimum="1" Maximum="65535" FormatString="0" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+                <TextBlock Text="{Binding Text[LocalAgentToken]}" Classes="label" />
+                <Grid ColumnDefinitions="*,10,Auto,6,Auto">
+                  <TextBox Text="{Binding LocalAgentToken, Mode=TwoWay}" PasswordChar="{Binding AgentTokenMask}" IsEnabled="{Binding CanEditLocalAgent}" />
+                  <Button x:Name="GenerateAgentTokenButton" Grid.Column="2" Classes="compactAction"
+                          Content="{Binding Text[GenerateAgentToken]}" Command="{Binding GenerateAgentTokenCommand}" />
+                  <Button Grid.Column="4" Content="{Binding Text[CopyAgentToken]}" Click="CopyAgentToken_Click" Classes="compactAction" />
+                </Grid>
+                <CheckBox Content="{Binding Text[ShowAgentToken]}" IsChecked="{Binding ShowLocalAgentToken, Mode=TwoWay}" />
+                <Grid ColumnDefinitions="Auto,12,*" ToolTip.Tip="{Binding Text[TlsControlHelp]}">
+                  <Button x:Name="PrepareIdentityButton" Content="{Binding Text[PrepareIdentity]}"
+                          Command="{Binding PrepareAgentIdentityCommand}" Classes="compactAction" IsEnabled="{Binding CanEditLocalAgent}" />
+                  <SelectableTextBlock Grid.Column="2" Text="{Binding LocalCertificateFingerprint}" TextWrapping="Wrap"
+                                       FontFamily="monospace" FontSize="12" VerticalAlignment="Center" />
+                </Grid>
+            </StackPanel></Border>
+            <Border Classes="card compact"><StackPanel Spacing="8">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Text[LocalAgentActions]}" Classes="heading" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                  <Button x:Name="StartLocalAgentButton" Content="{Binding Text[StartLocalAgent]}" Command="{Binding StartLocalAgentCommand}"
+                          Classes="accent compactAction" />
+                  <Button Content="{Binding Text[StopLocalAgent]}" Command="{Binding StopLocalAgentCommand}" Classes="compactAction" />
+                  <Button x:Name="CheckLocalAgentPortButton" Content="{Binding Text[CheckLocalAgentPort]}"
+                          Command="{Binding CheckLocalAgentPortCommand}" IsEnabled="{Binding !IsLocalAgentBusy}" Classes="compactAction"
+                          ToolTip.Tip="{Binding Text[LocalPortCheckOnly]}" />
+                </StackPanel>
+              </Grid>
+              <TextBlock Text="{Binding LocalAgentStatus}" TextWrapping="Wrap" />
+              <StackPanel Spacing="8" IsVisible="{Binding IsAspNetRuntimeMissing}">
+                <TextBlock Text="{Binding Text[RuntimeInstallHelp]}" Classes="muted" />
+                <Button x:Name="InstallAspNetRuntimeButton" Content="{Binding Text[InstallAspNetRuntime]}"
+                        Command="{Binding InstallAspNetRuntimeCommand}" Classes="accent compactAction" />
+              </StackPanel>
+            </StackPanel></Border>
+            <Border Classes="card compact">
+              <Grid ColumnDefinitions="*,16,Auto">
+                <TextBlock Text="{Binding Text[AgentFirewallTitle]}" Classes="heading" VerticalAlignment="Center"
+                           ToolTip.Tip="{Binding Text[AgentFirewallHelp]}" />
+                <Button x:Name="EnsureFirewallButton" Grid.Column="2" Content="{Binding Text[EnsureAgentFirewall]}"
+                        Command="{Binding EnsureAgentFirewallCommand}" Classes="compactAction" ToolTip.Tip="{Binding Text[AgentFirewallHelp]}" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem x:Name="JournalTab" Header="{Binding Text[Journal]}">
+        <Grid RowDefinitions="Auto,*" Margin="0,18,0,0">
+          <StackPanel Spacing="8" Margin="0,0,0,10">
+            <Grid x:Name="JournalToolbar" ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Text[JournalTitle]}" Classes="heading" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                  <Button x:Name="CopyJournalButton" Classes="logAction" Command="{Binding CopyJournalCommand}"
+                          CommandParameter="{Binding $parent[Window].Clipboard}"
+                          ToolTip.Tip="{Binding Text[CopyJournal]}" AutomationProperties.Name="{Binding Text[CopyJournal]}">
+                    <PathIcon Width="16" Height="16" Data="M6,2 L18,2 L18,14 L16,14 L16,4 L6,4 Z M2,6 L14,6 L14,20 L2,20 Z M4,8 L4,18 L12,18 L12,8 Z" />
+                  </Button>
+                  <Button x:Name="ClearJournalButton" Classes="logAction" Command="{Binding ClearJournalCommand}"
+                          ToolTip.Tip="{Binding Text[ClearJournal]}" AutomationProperties.Name="{Binding Text[ClearJournal]}">
+                    <PathIcon Width="16" Height="16" Data="M3,5 L7,5 L7,2 L13,2 L13,5 L17,5 L17,7 L3,7 Z M9,4 L9,5 L11,5 L11,4 Z M5,8 L15,8 L14,20 L6,20 Z M8,10 L9,18 L10,18 L9,10 Z M11,10 L11,18 L12,18 L13,10 Z" />
+                  </Button>
+                </StackPanel>
+              </Grid>
+            <Grid ColumnDefinitions="Auto,8,*">
+              <TextBlock Text="{Binding Text[ProfileLocation]}" Classes="muted" />
+              <SelectableTextBlock Grid.Column="2" Text="{Binding ProfilePath}" TextWrapping="Wrap" />
+            </Grid>
+          </StackPanel>
+          <ListBox Grid.Row="1" ItemsSource="{Binding Events}">
+            <ListBox.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </TabItem>
+    </TabControl>
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,16,0,0">
+      <TextBlock Text="{Binding Status}" Classes="muted" MaxHeight="45" />
+      <TextBlock Grid.Column="1" Text="{Binding Text[StageBadge]}" Classes="muted" Margin="20,0,0,0" />
+    </Grid>
+  </Grid>
+</Window>
