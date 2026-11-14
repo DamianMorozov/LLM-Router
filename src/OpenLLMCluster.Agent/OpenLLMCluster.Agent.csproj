@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="../OpenLLMCluster.Infrastructure/OpenLLMCluster.Infrastructure.csproj" />
+    <PackageReference Include="MagicOnion.Server" />
+  </ItemGroup>
+</Project>
