@@ -5,8 +5,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/open-llm-cluster.ico</ApplicationIcon>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <PublishDir>$(MSBuildThisFileDirectory)../../../Releases/Desktop/$(RuntimeIdentifier)/</PublishDir>
   </PropertyGroup>
+  <Import Project="../../build/Publication.props" />
   <ItemGroup>
     <ProjectReference Include="../OpenLLMCluster.Infrastructure/OpenLLMCluster.Infrastructure.csproj" />
     <ProjectReference Include="../OpenLLMCluster.Agent/OpenLLMCluster.Agent.csproj" ReferenceOutputAssembly="false" />
@@ -15,13 +15,17 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Velopack" />
     <EmbeddedResource Include="Localization/*.json" />
     <AvaloniaResource Include="Assets/**" />
   </ItemGroup>
-  <Target Name="CopyDevelopmentAgent" AfterTargets="Build" Condition="'$(BundleAgent)' != 'false'">
+  <Target Name="CopyDevelopmentAgent" AfterTargets="Build" Condition="'$(BundleAgent)' != 'false' and '$(_IsPublishing)' != 'true'">
+    <PropertyGroup>
+      <_DevelopmentAgentDirectory>$(MSBuildProjectDirectory)/../OpenLLMCluster.Agent/bin/$(Configuration)/$(TargetFramework)/$(RuntimeIdentifier)/</_DevelopmentAgentDirectory>
+    </PropertyGroup>
     <ItemGroup>
-      <_DevelopmentAgent Include="$(MSBuildProjectDirectory)/../OpenLLMCluster.Agent/bin/$(Configuration)/$(TargetFramework)/**/*"
-                         Exclude="$(MSBuildProjectDirectory)/../OpenLLMCluster.Agent/bin/$(Configuration)/$(TargetFramework)/Agent/**/*" />
+      <_DevelopmentAgent Include="$(_DevelopmentAgentDirectory)**/*"
+                         Exclude="$(_DevelopmentAgentDirectory)Agent/**/*;$(_DevelopmentAgentDirectory)publish/**/*;$(_DevelopmentAgentDirectory)win-*/**/*;$(_DevelopmentAgentDirectory)linux-*/**/*;$(_DevelopmentAgentDirectory)osx-*/**/*" />
     </ItemGroup>
     <Copy SourceFiles="@(_DevelopmentAgent)" DestinationFiles="@(_DevelopmentAgent->'$(OutDir)Agent/%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
@@ -31,6 +35,7 @@
       <_AgentRuntimeArgument Condition="'$(RuntimeIdentifier)' != ''">--runtime &quot;$(RuntimeIdentifier)&quot;</_AgentRuntimeArgument>
       <_AgentPublishDirectory>$([System.IO.Path]::Combine('$(PublishDir)', 'Agent'))</_AgentPublishDirectory>
     </PropertyGroup>
-    <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)/../OpenLLMCluster.Agent/OpenLLMCluster.Agent.csproj&quot; --configuration &quot;$(Configuration)&quot; $(_AgentRuntimeArgument) --self-contained $(SelfContained) --output &quot;$(_AgentPublishDirectory)&quot;" />
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)/../OpenLLMCluster.Agent/OpenLLMCluster.Agent.csproj&quot; --configuration &quot;$(Configuration)&quot; $(_AgentRuntimeArgument) --self-contained false -p:Version=$(Version) -p:PackageVersion=$(PackageVersion) -p:UseAppHost=true -p:PublishTrimmed=false -p:PublishAot=false -p:PublishSingleFile=false --output &quot;$(_AgentPublishDirectory)&quot;" />
   </Target>
+  <Import Project="../../build/Publication.targets" />
 </Project>

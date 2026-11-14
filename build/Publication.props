@@ -1,0 +1,22 @@
+<Project>
+  <PropertyGroup>
+    <VelopackPackId>OpenLLMCluster</VelopackPackId>
+    <MacOSBundleId>io.github.damianmorozov.openllmcluster</MacOSBundleId>
+    <ReleaseChannel Condition="'$(ReleaseChannel)' == ''">stable</ReleaseChannel>
+    <ReleaseTag Condition="'$(ReleaseTag)' == ''">v$(Version)</ReleaseTag>
+    <GitHubReleaseRoot Condition="'$(GitHubReleaseRoot)' == ''">$(MSBuildThisFileDirectory)../../Releases</GitHubReleaseRoot>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(_IsPublishing)' == 'true'">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
+    <_PublicationRid>$(RuntimeIdentifier)</_PublicationRid>
+    <_PublicationRid Condition="'$(_PublicationRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</_PublicationRid>
+    <VelopackChannel>$(_PublicationRid)-$(ReleaseChannel)</VelopackChannel>
+    <GitHubReleaseDir>$(GitHubReleaseRoot)/$(Version)/$(_PublicationRid)/</GitHubReleaseDir>
+    <PublishDir Condition="'$(PublishDir)' == ''">$(GitHubReleaseDir)publish/</PublishDir>
+    <PublishSelfContained>false</PublishSelfContained>
+    <_RequiredDotnetVersion>$([MSBuild]::GetTargetFrameworkVersion('$(TargetFramework)'))</_RequiredDotnetVersion>
+    <WindowsRuntimeDependencies Condition="'$(_PublicationRid)' == 'win-x64'">net$(_RequiredDotnetVersion)-x64-runtime,net$(_RequiredDotnetVersion)-x64-aspnetcore</WindowsRuntimeDependencies>
+    <UseAppHost>true</UseAppHost>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishAot>false</PublishAot>
+    <PublishSingleFile>false</PublishSingleFile>
+  </PropertyGroup>
+</Project>
